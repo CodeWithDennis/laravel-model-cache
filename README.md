@@ -45,6 +45,22 @@ $users = User::where('active', true)->get();
 $users = User::where('active', true)->get();
 ```
 
+**Customize TTL:**
+
+Override the `cacheTtl()` method in your model to change the cache duration:
+
+```php
+class User extends Model
+{
+    use HasCachePreWarming;
+
+    public function cacheTtl(): int
+    {
+        return 600; // Cache for 10 minutes instead of 5
+    }
+}
+```
+
 Automatic caching works great for most queries, but sometimes you want more control. For data that should be cached forever or pre-loaded before users request it, use manual warmup:
 
 ### Manual Warmup
