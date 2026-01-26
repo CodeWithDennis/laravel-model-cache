@@ -1,11 +1,6 @@
 # Cache Pre Warming
 
-A Laravel package that provides manual cache pre-warming for Eloquent models.
-
-## Features
-
-- **Manual Cache Pre-Warming** - Manually warm up cache with `warmup()` methods (always caches forever)
-- **Automatic Cache Invalidation** - Clears cache on model save/delete
+A Laravel package that provides automatic query caching and manual cache pre-warming for Eloquent models.
 
 ## Installation
 
@@ -15,69 +10,11 @@ composer require codewithdennis/cache-pre-warming
 
 ## Why Pre-Warm Cache?
 
-Pre-warming cache is beneficial for Laravel applications:
-
-- **Dashboard Performance**: Pre-load dashboard statistics, recent activity, and analytics data so admin panels load instantly
-- **Homepage Speed**: Cache featured content, latest posts, or popular items before users visit your homepage
-- **Scheduled Tasks**: Use Laravel's scheduler to warm cache during off-peak hours, reducing database load during peak traffic
-- **Queue Jobs**: Pre-warm expensive queries in background jobs instead of blocking user requests
-- **API Performance**: Cache frequently accessed API resources to ensure consistent response times
-
-### Example: Pre-Warm Dashboard Data
-
-Create an Artisan command to pre-warm your dashboard data:
-
-```php
-<?php
-
-namespace App\Console\Commands;
-
-use App\Models\User;
-use App\Models\Post;
-use Illuminate\Console\Command;
-
-class WarmDashboardCache extends Command
-{
-    protected $signature = 'cache:warm-dashboard';
-    protected $description = 'Pre-warm cache for dashboard data';
-
-    public function handle(): int
-    {
-        $this->info('Warming dashboard cache...');
-
-        // Pre-warm recent users
-        User::latest()->limit(50)->get()->warmup();
-
-        // Pre-warm featured posts
-        Post::where('featured', true)
-            ->with(['author', 'category'])
-            ->get()
-            ->warmup();
-
-        // Pre-warm admin user
-        User::where('role', 'admin')->first()?->warmup();
-
-        $this->info('Dashboard cache warmed successfully!');
-
-        return Command::SUCCESS;
-    }
-}
-```
-
-Then schedule it in `app/Console/Kernel.php`:
-
-```php
-protected function schedule(Schedule $schedule): void
-{
-    $schedule->command('cache:warm-dashboard')->hourly();
-}
-```
+Pre-warming cache improves performance by loading frequently accessed data before users request it. Use it for dashboard statistics, featured content, or any data that needs to load instantly.
 
 ## Usage
 
-### Basic Usage
-
-Use `HasCachePreWarming` to add manual warmup methods to your models:
+Add the trait to your models:
 
 ```php
 use CodeWithDennis\CachePreWarming\Traits\HasCachePreWarming;
@@ -89,47 +26,33 @@ class User extends Model
 }
 ```
 
-**Features:**
-- Manual warmup methods that cache forever
-- Cache is cleared when model is saved or deleted
+### Automatic Query Caching
+
+Queries are automatically cached:
+
+```php
+// First call executes query and caches result
+$users = User::where('active', true)->get();
+
+// Second call returns cached result (no database query)
+$users = User::where('active', true)->get();
+```
 
 ### Manual Warmup
 
-Call `warmup()` on model instances or collections to cache them forever:
+Pre-warm specific models or collections:
 
 ```php
-// Pre-warm frequently accessed models
-User::whereIn('id', [1, 2, 3, 4, 5])->get()->warmup();
-
-// Pre-warm featured content for homepage
-Post::where('featured', true)
+Post::where('published', true)
     ->where('published_at', '<=', now())
+    ->with(['author', 'category', 'tags'])
     ->orderBy('published_at', 'desc')
-    ->limit(10)
+    ->limit(20)
     ->get()
     ->warmup();
-
-// Pre-warm user with relationships
-$user = User::with(['posts', 'comments'])->find(1);
-$user->warmup();
 ```
 
-## Cache Keys
-
-Cache keys are automatically generated based on:
-- Model class name
-- Model ID
-
-### Custom Cache Keys
-
-Override the `cacheKey()` or `queryCacheKey()` methods if needed:
-
-```php
-protected static function cacheKey(int|string $id): string
-{
-    return 'custom:'.static::class.':id:'.(string) $id;
-}
-```
+Cache is automatically cleared when models are saved or deleted.
 
 ## License
 
