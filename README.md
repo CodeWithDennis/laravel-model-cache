@@ -13,6 +13,7 @@ composer require codewithdennis/cache-pre-warming
 Pre-warming cache improves performance by loading frequently accessed data before users request it. This provides several benefits:
 
 - **Faster Response Times**: Data is already in cache when users request it, eliminating database queries
+- **Eliminate Cold Starts**: Without pre-warming, the first user to visit a page waits while the database query executes and populates the cache. Pre-warming ensures all users get instant responses, including the first visitor
 - **Reduced Database Load**: Move expensive queries to background jobs or scheduled tasks instead of blocking user requests
 - **Predictable Performance**: Pre-load critical data during off-peak hours for consistent response times during peak traffic
 - **Better User Experience**: Homepage content, dashboard statistics, and featured items load instantly
@@ -46,6 +47,33 @@ Post::query()
     ->limit(20)
     ->get()
     ->warmup();
+```
+
+**Example: Scheduled Command**
+
+Pre-warm cache in a scheduled command that runs hourly:
+
+```php
+// app/Console/Commands/WarmCache.php
+class WarmCache extends Command
+{
+    protected $signature = 'cache:warm';
+    protected $description = 'Pre-warm frequently accessed data';
+
+    public function handle(): int
+    {
+        Post::where('featured', true)->get()->warmup();
+        User::where('role', 'admin')->get()->warmup();
+        
+        return Command::SUCCESS;
+    }
+}
+
+// app/Console/Kernel.php
+protected function schedule(Schedule $schedule): void
+{
+    $schedule->command('cache:warm')->hourly();
+}
 ```
 
 ### Automatic Query Caching
