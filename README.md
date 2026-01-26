@@ -24,18 +24,33 @@ Use pre-warming for dashboard statistics, featured content, or any data that nee
 Add the trait to your models:
 
 ```php
-use CodeWithDennis\CachePreWarming\Traits\HasCachePreWarming;
+use CodeWithDennis\CachePreWarming\Traits\HasCache;
 use Illuminate\Database\Eloquent\Model;
 
 class User extends Model
 {
-    use HasCachePreWarming;
+    use HasCache;
 }
+```
+
+### Manual Warmup
+
+Manually pre-warm cache by calling `warmup()` on models or collections. Unlike automatic caching which expires after a TTL, manually warmed cache persists forever until the model is saved or deleted. Use this to pre-load critical data in scheduled jobs or during application startup:
+
+```php
+Post::query()
+    ->where('published', true)
+    ->where('published_at', '<=', now())
+    ->with(['author', 'category', 'tags'])
+    ->orderBy('published_at', 'desc')
+    ->limit(20)
+    ->get()
+    ->warmup();
 ```
 
 ### Automatic Query Caching
 
-Queries are automatically cached with a TTL (default: 300 seconds):
+All queries are automatically cached when executed. Results are stored with a TTL (Time To Live) of 300 seconds by default, meaning cached results expire after 5 minutes. This happens automatically—no additional code needed:
 
 ```php
 // First call executes query and caches result
@@ -52,30 +67,13 @@ Override the `cacheTtl()` method in your model to change the cache duration:
 ```php
 class User extends Model
 {
-    use HasCachePreWarming;
+    use HasCache;
 
     public function cacheTtl(): int
     {
         return 600; // Cache for 10 minutes instead of 5
     }
 }
-```
-
-Automatic caching works great for most queries, but sometimes you want more control. For data that should be cached forever or pre-loaded before users request it, use manual warmup:
-
-### Manual Warmup
-
-Pre-warm specific models or collections:
-
-```php
-Post::query()
-    ->where('published', true)
-    ->where('published_at', '<=', now())
-    ->with(['author', 'category', 'tags'])
-    ->orderBy('published_at', 'desc')
-    ->limit(20)
-    ->get()
-    ->warmup();
 ```
 
 Cache is automatically cleared when models are saved or deleted.

@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Cache;
 /**
  * @mixin Model
  */
-trait HasCachePreWarming
+trait HasCache
 {
     protected static bool $enableAutomaticCaching = true;
 
@@ -22,7 +22,7 @@ trait HasCachePreWarming
         return static::$enableAutomaticCaching;
     }
 
-    protected static function bootHasCachePreWarming(): void
+    protected static function bootHasCache(): void
     {
         static $macroRegistered = false;
 
