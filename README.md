@@ -5,7 +5,11 @@
 [![PHP Version](https://img.shields.io/packagist/php-v/codewithdennis/cache-pre-warming)](https://packagist.org/packages/codewithdennis/cache-pre-warming)
 [![Laravel](https://img.shields.io/badge/Laravel-12.x-red)](https://laravel.com)
 
-This package does two things. **Normal caching:** add the trait to a model and every query is cached after it runs—first run hits the database, later runs with the same query get the result from cache. The cache expires after a set time (default 10 minutes). **Pre-warming:** call `warmup()` before a query and run that query once (e.g. in a scheduled command); the result is cached with no expiry, so the first visitor and everyone after get a fast response.
+This package does two things.
+
+**Normal caching** — Add the trait to a model and every query is cached after it runs. First run hits the database and stores the result; later runs with the same query get the result from cache. The cache expires after a set time (default 10 minutes).
+
+**Pre-warming** — Call `warmup()` before a query and run that query once (e.g. in a scheduled command). The result is cached with no expiry. The first visitor and everyone after get the result from cache, so no one pays for a slow first request.
 
 ---
 
@@ -30,13 +34,13 @@ class User extends Model
 }
 ```
 
-Queries on that model are cached after they run. With `warmup()` the cache never expires; without it the cache expires after a set time.
+You get both: normal caching (queries cached, expire after a set time) and pre-warming (call `warmup()`, run the query once, cache never expires). Use each where it fits.
 
 ---
 
-## Warmup: cache forever
+## Pre-warming
 
-Use this for data that rarely changes: dashboard stats, totals, reference data. Call `warmup()` before the query. Run that query once (for example in a scheduled command). The result is saved in cache with no expiry. Every later request that runs the same query gets the value from cache, so the first visitor and everyone after get a fast response.
+Use pre-warming for data that rarely changes: dashboard stats, totals, reference data. Call `warmup()` before the query. Run that query once (e.g. in a scheduled command). The result is stored in cache with no expiry. Every later request that runs the same query gets the value from cache.
 
 **Example**
 
@@ -51,7 +55,7 @@ $stats = User::query()
 
 **Run it in a command**
 
-Put the query in a Laravel command and schedule it (e.g. hourly or after deploy). When the command runs, it fills the cache. The next user request already gets the result from cache.
+Put the query in a Laravel command and schedule it (e.g. hourly or after deploy). When the command runs, it fills the cache. The next user request gets the result from cache.
 
 ```php
 // app/Console/Commands/WarmCache.php
@@ -80,9 +84,9 @@ Schedule::command('cache:warm')->hourly();
 
 ---
 
-## Default: cache for a set time
+## Normal caching
 
-Use the model as usual (do not call `warmup()`). The first time you run a query it hits the database and saves the result in cache. The next times you run the same query you get the result from cache until the cache expires (default 10 minutes). Then the next request hits the database again.
+Use the model as usual (do not call `warmup()`). The first time you run a query it hits the database and stores the result in cache. The next times you run the same query you get the result from cache until the cache expires (default 10 minutes). After that the next request hits the database again.
 
 **Example**
 
@@ -109,13 +113,13 @@ flowchart LR
   E -->|TTL only| F["After TTL → DB again"]
 ```
 
-Left path: warmup (cache forever). Right path: normal (cache for a set time; when it expires, the next request hits the database again).
+Left path: pre-warming (cache forever). Right path: normal caching (cache for a set time; when it expires, the next request hits the database again).
 
 ---
 
 ## Configuration
 
-**Change how long the cache lasts (option 2 only)**  
+**Change how long the cache lasts (normal caching only)**  
 Default is 600 seconds (10 minutes). Override in your model:
 
 ```php
@@ -132,9 +136,9 @@ protected int $cacheTtl = 300; // 5 minutes
 ```
 
 **What does warmup() do?**  
-It only changes one thing: the result is stored with no expiry instead of using the model’s TTL. Same caching, no expiry.
+It only changes one thing: the result is stored with no expiry instead of using the model’s TTL. Same caching behaviour, no expiry.
 
-**Supported methods**  
+**Supported methods (both normal caching and pre-warming)**  
 `get`, `first`, `find`, `findMany`, `pluck`, `value`, `sole`, `count`, `exists`, `doesntExist`, `sum`, `avg`, `average`, `min`, `max`, `paginate`, `simplePaginate`.
 
 ---
@@ -143,6 +147,8 @@ It only changes one thing: the result is stored with no expiry instead of using 
 
 - PHP 8.4+
 - Laravel 12.x
+
+Uses your Laravel cache (see `config/cache.php`). Models without the trait are not cached.
 
 ---
 
