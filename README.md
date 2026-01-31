@@ -39,7 +39,7 @@ Cache keys are based on the query, so different queries get different entries.
 
 ```mermaid
 flowchart LR
-  A[Cron runs command] --> B[Query + warmup]
+  A[Command runs] --> B[Query + warmup]
   B --> C[Cache forever]
   C --> D[User visits]
   D --> E[Cache hit, no DB]
