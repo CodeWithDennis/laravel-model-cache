@@ -5,7 +5,7 @@
 [![PHP Version](https://img.shields.io/packagist/php-v/codewithdennis/cache-pre-warming)](https://packagist.org/packages/codewithdennis/cache-pre-warming)
 [![Laravel](https://img.shields.io/badge/Laravel-12.x-red)](https://laravel.com)
 
-Pre-warm Eloquent queries so expensive or static data is served from cache, not the database. The standout feature is **warmup**: run a query once (e.g. in a scheduled command), and the result is cached **forever**—every request after that hits cache. No TTL, no cold cache. Plus normal TTL-based caching for everything else.
+This package does both: **pre-warm** heavy or static queries (cache forever) and **cache** other queries with a TTL. Pre-warm by running a query once in a scheduled command with **warmup**—the result is cached forever, so the first visitor and everyone after get a fast response. Without warmup, the same trait caches queries with a configurable TTL.
 
 ---
 
@@ -23,16 +23,15 @@ Heavy queries—dashboard stats, totals, reference data—either run on every re
 
 **Warmup flips that.** Run the query once in a Laravel command (on a schedule or right after deploy). The result is stored with `Cache::rememberForever()`. From then on, every identical query in your app gets the result from cache. No expiry. And because the command fills the cache before users hit the app, **no one is punished for being the first visitor**—the cache is already warm. Clear the cache manually when you need to refresh the data.
 
-
 ---
 
 ## Overview
 
-**Warmup** – Call `warmup()` before a query. The result is cached forever. Run that query once in a scheduled command (or at deploy); once the command has run, the cache is full, so the first user and every user after get a fast response. Use it for dashboards, aggregates, reference data, anything heavy or rarely-changing.
+**Warmup** – Run a query with `warmup()` once (e.g. in a scheduled command); result cached forever. Use for dashboards, aggregates, reference data.
 
-**Normal caching** – Without `warmup()`, queries are still cached automatically, but results expire after a configurable TTL (default 10 minutes). Same idea: first run hits the DB, next runs hit cache—until the TTL expires.
+**Caching** – Without `warmup()`, queries are cached automatically with a TTL (default 10 minutes). First run hits the DB, next runs hit cache until expiry.
 
-Cache keys are derived from the query, so different queries get different cache entries.
+Cache keys are based on the query, so different queries get different entries.
 
 ---
 
@@ -102,7 +101,7 @@ $users = User::where('active', true)->get();
 
 ### Warmup
 
-Call `warmup()` before any cached method. Works with `get`, `pluck`, `count`, `sum`, `avg`, `min`, `max`, `exists`, pagination, etc.
+Same as in Usage: call `warmup()` before the query. Works with all methods listed below.
 
 ```php
 Report::query()->warmup()->get();
@@ -125,13 +124,13 @@ public function cacheTtl(): int
 protected int $cacheTtl = 300; // 5 minutes
 ```
 
-### Cached methods
+### Cached methods (warmup and TTL)
 
-`get`, `first`, `find`, `findMany`, `pluck`, `value`, `sole`, `count`, `exists`, `doesntExist`, `sum`, `avg`, `average`, `min`, `max`, `paginate`, `simplePaginate`.
+Both behaviours support: `get`, `first`, `find`, `findMany`, `pluck`, `value`, `sole`, `count`, `exists`, `doesntExist`, `sum`, `avg`, `average`, `min`, `max`, `paginate`, `simplePaginate`.
 
 ### How cache keys work
 
-Keys are an MD5 hash of the query (raw SQL with bindings) plus a short suffix for the operation (`get`, `count`, `pluck:...`, etc.). Same query + same method = same key; different query or method = different key.
+Same for both warmup and TTL: keys are an MD5 hash of the query (raw SQL with bindings) plus a suffix for the operation (`get`, `count`, `pluck:...`, etc.). Same query + same method = same key; different query or method = different key.
 
 ---
 
@@ -139,6 +138,8 @@ Keys are an MD5 hash of the query (raw SQL with bindings) plus a short suffix fo
 
 - PHP 8.4+
 - Laravel 12.x
+
+Uses your Laravel cache driver (`config/cache.php`). Models without the trait are not cached.
 
 ---
 

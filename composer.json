@@ -1,7 +1,7 @@
 {
     "name": "codewithdennis/cache-pre-warming",
-    "description": "A package that allows you to pre-warm your query cache in Laravel applications.",
-    "keywords": ["laravel", "cache", "pre-warming", "query cache", "performance"],
+    "description": "Pre-warm and cache Eloquent query results. Run heavy queries once with warmup (forever cache) or use TTL-based caching on any model.",
+    "keywords": ["laravel", "eloquent", "cache", "pre-warming", "warmup", "query cache", "ttl", "performance"],
     "license": "MIT",
     "authors": [
         {
