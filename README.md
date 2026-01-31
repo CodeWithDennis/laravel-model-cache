@@ -35,23 +35,18 @@ Cache keys are based on the query, so different queries get different entries.
 
 ### How it works
 
-**Pre-warming (warmup)**
-
 ```mermaid
 flowchart LR
-  A[Command runs] --> B[Query + warmup]
-  B --> C[Cache forever]
-  C --> D[User visits]
-  D --> E[Cache hit, no DB]
-```
-
-**Caching (TTL)**
-
-```mermaid
-flowchart LR
-  A[First request] --> B[Query → DB]
-  B --> C[Cache with TTL]
-  C --> D[Later request]
+  subgraph warmup[Pre-warming]
+    A1[Command runs] --> B1[Query + warmup]
+    B1 --> C1[Cache forever]
+  end
+  subgraph ttl[TTL]
+    A2[First request] --> B2[Query → DB]
+    B2 --> C2[Cache with TTL]
+  end
+  C1 --> D[Request]
+  C2 --> D
   D --> E[Cache hit]
   E --> F[After TTL → DB again]
 ```
