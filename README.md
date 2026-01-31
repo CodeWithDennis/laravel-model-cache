@@ -5,7 +5,7 @@
 [![PHP Version](https://img.shields.io/packagist/php-v/codewithdennis/cache-pre-warming)](https://packagist.org/packages/codewithdennis/cache-pre-warming)
 [![Laravel](https://img.shields.io/badge/Laravel-12.x-red)](https://laravel.com)
 
-Automatic query caching for Laravel Eloquent. Add the `HasCache` trait to a model—queries are cached automatically with a TTL. Use `warmup()` when you want a result cached **forever** (e.g. heavy dashboard stats or reference data).
+Pre-warm Eloquent queries so expensive or static data is served from cache, not the database. The standout feature is **warmup**: run a query once (e.g. in a scheduled command), and the result is cached **forever**—every request after that hits cache. No TTL, no cold cache. Plus normal TTL-based caching for everything else.
 
 ---
 
@@ -17,20 +17,28 @@ composer require codewithdennis/cache-pre-warming
 
 ---
 
+## Why warmup?
+
+Heavy queries—dashboard stats, totals, reference data—either run on every request (expensive) or make the first request slow when the cache is empty. With normal TTL caching you still pay that cost whenever the cache expires or is cold.
+
+**Warmup flips that.** Run the query once in a Laravel command (on a schedule or right after deploy). The result is stored with `Cache::rememberForever()`. From then on, every identical query in your app gets the result from cache. No expiry. And because the command fills the cache before users hit the app, **no one is punished for being the first visitor**—the cache is already warm. Clear the cache manually when you need to refresh the data.
+
+
+---
+
 ## Overview
 
-| Mode | When to use | Behaviour |
-|------|-------------|-----------|
-| **Warmup** | Heavy or rarely-changing data (dashboards, aggregates, reference data) | Cached **forever**. First run hits the DB; later identical queries come from cache until you clear it. |
-| **Normal** | Everything else | Cached with a **TTL** (default 10 min). First run hits the DB; later identical queries come from cache until TTL expires. |
+**Warmup** – Call `warmup()` before a query. The result is cached forever. Run that query once in a scheduled command (or at deploy); once the command has run, the cache is full, so the first user and every user after get a fast response. Use it for dashboards, aggregates, reference data, anything heavy or rarely-changing.
 
-Both modes are **query-keyed**: cache keys come from the query (SQL + bindings), so different queries get different cache entries.
+**Normal caching** – Without `warmup()`, queries are still cached automatically, but results expire after a configurable TTL (default 10 minutes). Same idea: first run hits the DB, next runs hit cache—until the TTL expires.
+
+Cache keys are derived from the query, so different queries get different cache entries.
 
 ---
 
 ## Usage
 
-### 1. Add the trait
+Add the trait to any model:
 
 ```php
 use CodeWithDennis\CachePreWarming\Traits\HasCache;
@@ -41,21 +49,22 @@ class User extends Model
 }
 ```
 
-### 2. Warmup: cache heavy or static data forever
+From there you get two separate behaviours:
 
-Use `warmup()` for expensive or rarely-changing queries—dashboard stats, site-wide totals, reference data. The result is stored with `Cache::rememberForever()`.
+### Pre-warming (warmup)
 
-**Dashboard / reference data**
+Add `warmup()` before the query. Run that query once (e.g. in a scheduled command)—the result is cached forever. Every later identical query in your app gets the value from cache.
 
 ```php
 $stats = [
     'total_revenue' => Order::query()->warmup()->sum('amount'),
     'total_users'   => User::query()->warmup()->count(),
 ];
+
 $countries = Country::query()->warmup()->pluck('name', 'code');
 ```
 
-**Where to warmup** – Run warmup in a Laravel command and schedule it (e.g. hourly or after deploy). First request then hits cache.
+Put these queries in a Laravel command and schedule it (hourly, daily, or after deploy). Once the command has run, the next user request will already hit cache—no cold cache for the first visitor.
 
 ```php
 // app/Console/Commands/WarmCache.php
@@ -67,6 +76,7 @@ class WarmCache extends Command
     {
         Order::query()->warmup()->sum('amount');
         User::query()->warmup()->count();
+
         return self::SUCCESS;
     }
 }
@@ -77,12 +87,13 @@ class WarmCache extends Command
 Schedule::command('cache:warm')->hourly();
 ```
 
-### 3. Normal caching: TTL-based
+### Caching (TTL-based)
 
-Use the model as usual. The first run hits the database; identical queries later are served from cache until the TTL (default 600 seconds) expires.
+Use the model as usual, without `warmup()`. The first run hits the database; identical queries later are served from cache until the TTL (default 600 seconds) expires.
 
 ```php
-$users = User::where('active', true)->get(); // 1st: DB, 2nd: cache
+// 1st call: DB. 2nd call: cache
+$users = User::where('active', true)->get();
 ```
 
 ---
@@ -105,7 +116,13 @@ Default TTL is **600 seconds** (10 minutes). Override per model:
 **Method or property (inside your model):**
 
 ```php
-public function cacheTtl(): int { return 3600; }  // or: protected int $cacheTtl = 300;
+public function cacheTtl(): int
+{
+    return 3600; // 1 hour
+}
+
+// or
+protected int $cacheTtl = 300; // 5 minutes
 ```
 
 ### Cached methods
