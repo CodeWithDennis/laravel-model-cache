@@ -44,10 +44,10 @@ flowchart LR
   B2 --> C2[Cache with TTL]
   C2 --> D
   D --> E[Cache hit]
-  E --> F["After TTL → DB again"]
+  E -->|TTL only| F["After TTL → DB again"]
 ```
 
-*Pre-warming: run query with warmup (cached with no TTL). TTL path: run query, then cache with TTL.*
+*Pre-warming: run query with warmup, cache with no TTL. TTL path: run query, cache with TTL; when TTL expires, next request hits DB again.*
 
 ---
 
