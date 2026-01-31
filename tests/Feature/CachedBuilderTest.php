@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Illuminate\Cache\ArrayStore;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Tests\Stubs\User;
@@ -13,6 +14,26 @@ beforeEach(function (): void {
     Cache::flush();
     User::query()->delete();
 });
+
+/**
+ * Get the raw storage from the array cache store (for TTL assertions).
+ * Returns array of key => ['value' => mixed, 'expiresAt' => float] where expiresAt is 0 for forever.
+ *
+ * @return array<string, array{value: mixed, expiresAt: float}>
+ */
+function getArrayCacheStorage(): array
+{
+    $store = Cache::getStore();
+
+    if (! $store instanceof ArrayStore) {
+        return [];
+    }
+
+    $storageProp = (new \ReflectionClass($store))->getProperty('storage');
+    $storageProp->setAccessible(true);
+
+    return $storageProp->getValue($store);
+}
 
 /**
  * Run the same query twice and assert: first call hits the database, second call is served from cache (no new queries).
@@ -308,6 +329,44 @@ describe('CachedBuilder', function (): void {
                 expect($first)->toBe($second)
                     ->and($first)->toHaveCount(1)
                     ->and($first->first()->name)->toBe('Ttl');
+            });
+
+            it('stores cache with finite TTL (expiresAt in the future)', function (): void {
+                User::create(['name' => 'Ttl', 'score' => 0]);
+
+                User::query()->get();
+
+                $storage = getArrayCacheStorage();
+                expect($storage)->toHaveCount(1);
+
+                $entry = array_values($storage)[0];
+                expect($entry['expiresAt'])->toBeGreaterThan(0)
+                    ->and($entry['expiresAt'])->toBeGreaterThan(time())
+                    ->and($entry['expiresAt'])->toBeLessThanOrEqual(time() + 601);
+            });
+        });
+
+        describe('warmup', function (): void {
+            it('caches result indefinitely (second call from cache, no new queries)', function (): void {
+                User::create(['name' => 'Warmup', 'score' => 0]);
+
+                [$first, $second] = assertSecondCallFromCache(fn () => User::query()->warmup()->get());
+
+                expect($first)->toBe($second)
+                    ->and($first)->toHaveCount(1)
+                    ->and($first->first()->name)->toBe('Warmup');
+            });
+
+            it('stores cache with no expiration (expiresAt is 0)', function (): void {
+                User::create(['name' => 'Warmup', 'score' => 0]);
+
+                User::query()->warmup()->get();
+
+                $storage = getArrayCacheStorage();
+                expect($storage)->toHaveCount(1);
+
+                $entry = array_values($storage)[0];
+                expect($entry['expiresAt'])->toBeIn([0, 0.0]);
             });
         });
     });

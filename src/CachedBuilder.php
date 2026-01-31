@@ -15,6 +15,20 @@ use Illuminate\Support\Facades\Cache;
  */
 class CachedBuilder extends Builder
 {
+    protected bool $cacheForever = false;
+
+    /**
+     * Cache the result indefinitely (no TTL). Use before executing the query.
+     *
+     * @return $this
+     */
+    public function warmup(): static
+    {
+        $this->cacheForever = true;
+
+        return $this;
+    }
+
     /**
      * @param  array<int, string>|string  $columns
      * @return \Illuminate\Database\Eloquent\Collection<int, TModel>
@@ -22,10 +36,9 @@ class CachedBuilder extends Builder
     public function get($columns = ['*'])
     {
         $key = $this->queryCacheKey();
-        $ttl = $this->getCacheTtl();
 
         /** @var Collection<int, TModel> $result */
-        $result = Cache::remember($key, $ttl, fn () => parent::get($columns));
+        $result = $this->remember($key, fn () => parent::get($columns));
 
         return $result;
     }
@@ -39,10 +52,9 @@ class CachedBuilder extends Builder
     {
         $suffix = 'pluck:'.md5(serialize([$column, $key]));
         $cacheKey = $this->queryCacheKey($suffix);
-        $ttl = $this->getCacheTtl();
 
         /** @var \Illuminate\Support\Collection<int|string, mixed> $result */
-        $result = Cache::remember($cacheKey, $ttl, fn () => parent::pluck($column, $key));
+        $result = $this->remember($cacheKey, fn () => parent::pluck($column, $key));
 
         return $result;
     }
@@ -55,10 +67,9 @@ class CachedBuilder extends Builder
     {
         $suffix = 'count:'.md5(serialize($columns));
         $key = $this->queryCacheKey($suffix);
-        $ttl = $this->getCacheTtl();
 
         /** @var int<0, max> $result */
-        $result = Cache::remember($key, $ttl, fn () => parent::count($columns));
+        $result = $this->remember($key, fn () => parent::count($columns));
 
         return $result;
     }
@@ -66,9 +77,8 @@ class CachedBuilder extends Builder
     public function exists(): bool
     {
         $key = $this->queryCacheKey('exists');
-        $ttl = $this->getCacheTtl();
 
-        return (bool) Cache::remember($key, $ttl, fn () => parent::exists());
+        return (bool) $this->remember($key, fn () => parent::exists());
     }
 
     public function doesntExist(): bool
@@ -84,9 +94,8 @@ class CachedBuilder extends Builder
     {
         $suffix = 'sum:'.md5(serialize($column));
         $key = $this->queryCacheKey($suffix);
-        $ttl = $this->getCacheTtl();
 
-        $result = Cache::remember($key, $ttl, fn () => parent::sum($column));
+        $result = $this->remember($key, fn () => parent::sum($column));
 
         return $result ?: 0;
     }
@@ -99,9 +108,8 @@ class CachedBuilder extends Builder
     {
         $suffix = 'avg:'.md5(serialize($column));
         $key = $this->queryCacheKey($suffix);
-        $ttl = $this->getCacheTtl();
 
-        return Cache::remember($key, $ttl, fn () => parent::avg($column));
+        return $this->remember($key, fn () => parent::avg($column));
     }
 
     /**
@@ -112,9 +120,8 @@ class CachedBuilder extends Builder
     {
         $suffix = 'min:'.md5(serialize($column));
         $key = $this->queryCacheKey($suffix);
-        $ttl = $this->getCacheTtl();
 
-        return Cache::remember($key, $ttl, fn () => parent::min($column));
+        return $this->remember($key, fn () => parent::min($column));
     }
 
     /**
@@ -125,9 +132,8 @@ class CachedBuilder extends Builder
     {
         $suffix = 'max:'.md5(serialize($column));
         $key = $this->queryCacheKey($suffix);
-        $ttl = $this->getCacheTtl();
 
-        return Cache::remember($key, $ttl, fn () => parent::max($column));
+        return $this->remember($key, fn () => parent::max($column));
     }
 
     /**
@@ -137,6 +143,19 @@ class CachedBuilder extends Builder
     public function average($column)
     {
         return $this->avg($column);
+    }
+
+    /**
+     * @param  callable(): mixed  $callback
+     * @return mixed
+     */
+    protected function remember(string $key, callable $callback): mixed
+    {
+        if ($this->cacheForever) {
+            return Cache::rememberForever($key, $callback);
+        }
+
+        return Cache::remember($key, $this->getCacheTtl(), $callback);
     }
 
     protected function getCacheTtl(): int

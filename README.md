@@ -5,7 +5,9 @@
 [![PHP Version](https://img.shields.io/packagist/php-v/codewithdennis/cache-pre-warming)](https://packagist.org/packages/codewithdennis/cache-pre-warming)
 [![Laravel](https://img.shields.io/badge/Laravel-12.x-red)](https://laravel.com)
 
-Automatic query caching for Laravel Eloquent models. Use the `HasCache` trait on a model and its read queries (`get`, `first`, `find`, `pluck`, `count`, `exists`, aggregates, pagination, etc.) are cached—the first run hits the database, subsequent identical queries are served from cache until the TTL expires.
+Automatic query caching for Laravel Eloquent. Add the `HasCache` trait to a model—queries are cached automatically with a TTL. Use `warmup()` when you want a result cached **forever** (e.g. heavy dashboard stats or reference data).
+
+---
 
 ## Installation
 
@@ -13,30 +15,25 @@ Automatic query caching for Laravel Eloquent models. Use the `HasCache` trait on
 composer require codewithdennis/cache-pre-warming
 ```
 
-## What it does
+---
 
-- **Automatic caching** – No extra code. Queries on models using `HasCache` are cached by default.
-- **Query-keyed** – Cache keys are derived from the query (SQL + bindings), so different queries get different cache entries.
-- **TTL-based** – Cached results expire after a configurable time (default 600 seconds). Uses your Laravel cache driver (file, Redis, Memcached, etc.).
+## Overview
 
-Cached methods include: `get`, `first`, `find`, `findMany`, `pluck`, `value`, `sole`, `count`, `exists`, `doesntExist`, `sum`, `avg`, `average`, `min`, `max`, `paginate`, `simplePaginate`.
+| Mode | When to use | Behaviour |
+|------|-------------|-----------|
+| **Warmup** | Heavy or rarely-changing data (dashboards, aggregates, reference data) | Cached **forever**. First run hits the DB; later identical queries come from cache until you clear it. |
+| **Normal** | Everything else | Cached with a **TTL** (default 10 min). First run hits the DB; later identical queries come from cache until TTL expires. |
 
-### How cache keys are generated
+Both modes are **query-keyed**: cache keys come from the query (SQL + bindings), so different queries get different cache entries.
 
-Each cache key is an MD5 hash of:
-
-1. **The query** – After applying scopes, the builder’s raw SQL is taken (with bindings replaced). So `User::where('active', true)->get()` and `User::where('active', false)->get()` get different keys.
-2. **A method suffix** – The same query can be used for different operations (`get()` vs `count()` vs `pluck('name')`). A short suffix is appended so each operation has its own cache entry and you don’t mix collections, integers, and other result shapes.
-
-So identical queries for the same method share one cache entry; the same query for different methods (e.g. `get()` and `count()`) do not.
+---
 
 ## Usage
 
-Add the trait to any Eloquent model:
+### 1. Add the trait
 
 ```php
 use CodeWithDennis\CachePreWarming\Traits\HasCache;
-use Illuminate\Database\Eloquent\Model;
 
 class User extends Model
 {
@@ -44,53 +41,91 @@ class User extends Model
 }
 ```
 
-Then use the model as usual. The first execution of a query runs against the database and stores the result; repeated identical queries return from cache until the TTL expires.
+### 2. Warmup: cache heavy or static data forever
+
+Use `warmup()` for expensive or rarely-changing queries—dashboard stats, site-wide totals, reference data. The result is stored with `Cache::rememberForever()`.
+
+**Dashboard / reference data**
 
 ```php
-// First call: runs query, caches result
-$users = User::where('active', true)->get();
-
-// Second call: returns cached result (no database query)
-$users = User::where('active', true)->get();
+$stats = [
+    'total_revenue' => Order::query()->warmup()->sum('amount'),
+    'total_users'   => User::query()->warmup()->count(),
+];
+$countries = Country::query()->warmup()->pluck('name', 'code');
 ```
 
-## Customization
-
-### Cache TTL
-
-Default TTL is **600 seconds** (10 minutes). Override per model in either of these ways:
-
-**1. Override the method**
+**Where to warmup** – Run warmup in a Laravel command and schedule it (e.g. hourly or after deploy). First request then hits cache.
 
 ```php
-class User extends Model
+// app/Console/Commands/WarmCache.php
+class WarmCache extends Command
 {
-    use HasCache;
+    protected $signature = 'cache:warm';
 
-    public function cacheTtl(): int
+    public function handle(): int
     {
-        return 3600; // 1 hour
+        Order::query()->warmup()->sum('amount');
+        User::query()->warmup()->count();
+        return self::SUCCESS;
     }
 }
 ```
 
-**2. Set the property**
-
 ```php
-class Post extends Model
-{
-    use HasCache;
-
-    protected int $cacheTtl = 300; // 5 minutes
-}
+// routes/console.php
+Schedule::command('cache:warm')->hourly();
 ```
 
-Models without the trait use the default builder (no caching). Uses your Laravel cache driver from `config/cache.php`.
+### 3. Normal caching: TTL-based
+
+Use the model as usual. The first run hits the database; identical queries later are served from cache until the TTL (default 600 seconds) expires.
+
+```php
+$users = User::where('active', true)->get(); // 1st: DB, 2nd: cache
+```
+
+---
+
+## Customization
+
+### Warmup
+
+Call `warmup()` before any cached method. Works with `get`, `pluck`, `count`, `sum`, `avg`, `min`, `max`, `exists`, pagination, etc.
+
+```php
+Report::query()->warmup()->get();
+Metric::query()->warmup()->sum('value');
+```
+
+### Cache TTL (normal mode)
+
+Default TTL is **600 seconds** (10 minutes). Override per model:
+
+**Method or property (inside your model):**
+
+```php
+public function cacheTtl(): int { return 3600; }  // or: protected int $cacheTtl = 300;
+```
+
+### Cached methods
+
+`get`, `first`, `find`, `findMany`, `pluck`, `value`, `sole`, `count`, `exists`, `doesntExist`, `sum`, `avg`, `average`, `min`, `max`, `paginate`, `simplePaginate`.
+
+### How cache keys work
+
+Keys are an MD5 hash of the query (raw SQL with bindings) plus a short suffix for the operation (`get`, `count`, `pluck:...`, etc.). Same query + same method = same key; different query or method = different key.
+
+---
 
 ## Requirements
 
 - PHP 8.4+
 - Laravel 12.x
+
+Uses your Laravel cache driver from `config/cache.php`. Models without the trait use the default builder (no caching).
+
+---
 
 ## License
 
