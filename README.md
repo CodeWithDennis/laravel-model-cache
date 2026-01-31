@@ -37,17 +37,16 @@ Cache keys are based on the query, so different queries get different entries.
 
 ```mermaid
 flowchart LR
-  A1[Command runs] --> B1[Query runs]
-  B1 --> C1[Cache forever]
-  A2[First request] --> B2[Query runs]
+  A1[Command runs] --> B1[Run query (with warmup)]
+  B1 --> D[Request]
+  A2[First request] --> B2[Run query]
   B2 --> C2[Cache with TTL]
-  C1 --> D[Request]
   C2 --> D
   D --> E[Cache hit]
   E --> F[After TTL → DB again]
 ```
 
-*Both paths run the query (hit DB). Difference: Pre-warming caches with no TTL; TTL path caches with TTL.*
+*Pre-warming: run query with warmup (cached with no TTL). TTL path: run query, then cache with TTL.*
 
 ---
 
