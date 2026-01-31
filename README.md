@@ -38,7 +38,7 @@ Cache keys are based on the query, so different queries get different entries.
 **Pre-warming (warmup)**
 
 ```mermaid
-flowchart TD
+flowchart LR
   A[1. Cron runs your warmup command] --> B[2. Command runs query with warmup]
   B --> C[3. Result saved to cache - no expiry]
   C --> D[4. User visits your app]
@@ -48,7 +48,7 @@ flowchart TD
 **Caching (TTL)**
 
 ```mermaid
-flowchart TD
+flowchart LR
   A[1. First request runs the query] --> B[2. Query hits database]
   B --> C[3. Result saved to cache with TTL e.g. 10 min]
   C --> D[4. Second request runs same query]
