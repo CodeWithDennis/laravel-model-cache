@@ -5,19 +5,10 @@ declare(strict_types=1);
 namespace CodeWithDennis\CachePreWarming;
 
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Collection as EloquentCollection;
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Cache;
 
 /**
- * Custom Builder that adds automatic query result caching.
- *
- * This class extends Laravel's Builder and overrides get() and first()
- * to intercept query execution and return cached results when available.
- *
- * @note This overrides Laravel's Builder methods. If Laravel changes
- * these method signatures in future versions, this package may need updates.
- *
  * @template TModel of \Illuminate\Database\Eloquent\Model
  *
  * @extends Builder<TModel>
@@ -25,80 +16,134 @@ use Illuminate\Support\Facades\Cache;
 class CachedBuilder extends Builder
 {
     /**
-     * Execute the query as a "select" statement and cache the results.
-     *
      * @param  array<int, string>|string  $columns
-     * @return EloquentCollection<int, TModel>
+     * @return \Illuminate\Database\Eloquent\Collection<int, TModel>
      */
-    public function get($columns = ['*']): EloquentCollection
+    public function get($columns = ['*'])
     {
-        /** @var TModel $model */
-        $model = $this->getModel();
+        $key = $this->queryCacheKey();
+        $ttl = $this->getCacheTtl();
 
-        // Set columns on query so toRawSql() includes them
-        if ($columns !== ['*']) {
-            /** @var array<int, string> $columnsArray */
-            $columnsArray = is_array($columns) ? $columns : [$columns];
-            $this->getQuery()->columns = $columnsArray;
-        }
-
-        /** @var string $key */
-        $key = $model::queryCacheKey($this);
-
-        /** @var EloquentCollection<int, TModel>|null $cached */
-        $cached = Cache::get($key);
-        if ($cached !== null) {
-            /** @var EloquentCollection<int, TModel> $cached */
-            return $cached;
-        }
-
-        /** @var EloquentCollection<int, TModel> $result */
-        $result = parent::get($columns);
-        /** @var int $ttl */
-        $ttl = $model->cacheTtl();
-        Cache::put($key, $result, $ttl);
+        /** @var Collection<int, TModel> $result */
+        $result = Cache::remember($key, $ttl, fn () => parent::get($columns));
 
         return $result;
     }
 
     /**
-     * Execute the query and get the first result, caching the result.
-     *
-     * @param  array<int, string>|string  $columns
-     * @return TModel|null
+     * @param  string|\Illuminate\Contracts\Database\Query\Expression  $column
+     * @param  string|null  $key
+     * @return \Illuminate\Support\Collection<array-key, mixed>
      */
-    public function first($columns = ['*']): ?Model
+    public function pluck($column, $key = null)
     {
-        /** @var TModel $model */
+        $suffix = 'pluck:' . md5(serialize([$column, $key]));
+        $cacheKey = $this->queryCacheKey($suffix);
+        $ttl = $this->getCacheTtl();
+
+        return Cache::remember($cacheKey, $ttl, fn () => parent::pluck($column, $key));
+    }
+
+    /**
+     * @param  \Illuminate\Contracts\Database\Query\Expression|string  $columns
+     * @return int<0, max>
+     */
+    public function count($columns = '*')
+    {
+        $suffix = 'count:' . md5(serialize($columns));
+        $key = $this->queryCacheKey($suffix);
+        $ttl = $this->getCacheTtl();
+
+        return (int) Cache::remember($key, $ttl, fn () => parent::count($columns));
+    }
+
+    public function exists(): bool
+    {
+        $key = $this->queryCacheKey('exists');
+        $ttl = $this->getCacheTtl();
+
+        return (bool) Cache::remember($key, $ttl, fn () => parent::exists());
+    }
+
+    public function doesntExist(): bool
+    {
+        return ! $this->exists();
+    }
+
+    /**
+     * @param  \Illuminate\Contracts\Database\Query\Expression|string  $column
+     * @return mixed
+     */
+    public function sum($column)
+    {
+        $suffix = 'sum:' . md5(serialize($column));
+        $key = $this->queryCacheKey($suffix);
+        $ttl = $this->getCacheTtl();
+
+        $result = Cache::remember($key, $ttl, fn () => parent::sum($column));
+
+        return $result ?: 0;
+    }
+
+    /**
+     * @param  \Illuminate\Contracts\Database\Query\Expression|string  $column
+     * @return mixed
+     */
+    public function avg($column)
+    {
+        $suffix = 'avg:' . md5(serialize($column));
+        $key = $this->queryCacheKey($suffix);
+        $ttl = $this->getCacheTtl();
+
+        return Cache::remember($key, $ttl, fn () => parent::avg($column));
+    }
+
+    /**
+     * @param  \Illuminate\Contracts\Database\Query\Expression|string  $column
+     * @return mixed
+     */
+    public function min($column)
+    {
+        $suffix = 'min:' . md5(serialize($column));
+        $key = $this->queryCacheKey($suffix);
+        $ttl = $this->getCacheTtl();
+
+        return Cache::remember($key, $ttl, fn () => parent::min($column));
+    }
+
+    /**
+     * @param  \Illuminate\Contracts\Database\Query\Expression|string  $column
+     * @return mixed
+     */
+    public function max($column)
+    {
+        $suffix = 'max:' . md5(serialize($column));
+        $key = $this->queryCacheKey($suffix);
+        $ttl = $this->getCacheTtl();
+
+        return Cache::remember($key, $ttl, fn () => parent::max($column));
+    }
+
+    /**
+     * @param  \Illuminate\Contracts\Database\Query\Expression|string  $column
+     * @return mixed
+     */
+    public function average($column)
+    {
+        return $this->avg($column);
+    }
+
+    protected function getCacheTtl(): int
+    {
         $model = $this->getModel();
 
-        // Set columns on query so toRawSql() includes them
-        if ($columns !== ['*']) {
-            /** @var array<int, string> $columnsArray */
-            $columnsArray = is_array($columns) ? $columns : [$columns];
-            $this->getQuery()->columns = $columnsArray;
-        }
+        return method_exists($model, 'cacheTtl') ? $model->cacheTtl() : 600;
+    }
 
-        /** @var string $key */
-        $key = $model::queryCacheKey($this);
+    protected function queryCacheKey(string $suffix = ''): string
+    {
+        $raw = $this->applyScopes()->toBase()->toRawSql();
 
-        /** @var TModel|string|null $cached */
-        $cached = Cache::get($key);
-        if ($cached !== null) {
-            if ($cached === '__CACHED_NULL__') {
-                return null;
-            }
-
-            /** @var TModel $cached */
-            return $cached;
-        }
-
-        /** @var TModel|null $result */
-        $result = parent::first($columns);
-        /** @var int $ttl */
-        $ttl = $model->cacheTtl();
-        Cache::put($key, $result ?? '__CACHED_NULL__', $ttl);
-
-        return $result;
+        return md5($raw . $suffix);
     }
 }
