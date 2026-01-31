@@ -7,5 +7,5 @@ parameters:
 
     ignoreErrors:
         - '#Trait .* is used zero times and is not analysed#'
-        - '#Call to an undefined (static )?method .*::queryCacheKey\(\)#'
         - '#Call to an undefined method .*::cacheTtl\(\)#'
+        - '#Parameter .* \$ttl .* mixed given#'
