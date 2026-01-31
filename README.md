@@ -39,21 +39,21 @@ Cache keys are based on the query, so different queries get different entries.
 
 ```mermaid
 flowchart LR
-  A[1. Cron runs your warmup command] --> B[2. Command runs query with warmup]
-  B --> C[3. Result saved to cache - no expiry]
-  C --> D[4. User visits your app]
-  D --> E[5. App runs same query - served from cache, no database call]
+  A[Cron runs command] --> B[Query + warmup]
+  B --> C[Cache forever]
+  C --> D[User visits]
+  D --> E[Cache hit, no DB]
 ```
 
 **Caching (TTL)**
 
 ```mermaid
 flowchart LR
-  A[1. First request runs the query] --> B[2. Query hits database]
-  B --> C[3. Result saved to cache with TTL e.g. 10 min]
-  C --> D[4. Second request runs same query]
-  D --> E[5. Served from cache - no database]
-  E --> F[6. After TTL expires, next request hits database again]
+  A[First request] --> B[Query → DB]
+  B --> C[Cache with TTL]
+  C --> D[Later request]
+  D --> E[Cache hit]
+  E --> F[After TTL → DB again]
 ```
 
 ---
