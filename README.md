@@ -33,6 +33,29 @@ Heavy queries—dashboard stats, totals, reference data—either run on every re
 
 Cache keys are based on the query, so different queries get different entries.
 
+### How it works
+
+**Pre-warming (warmup)**
+
+```mermaid
+flowchart LR
+  A[Scheduled command] --> B[Query with warmup]
+  B --> C[Cache forever]
+  C --> D[User request]
+  D --> E[Cache hit - no DB]
+```
+
+**Caching (TTL)**
+
+```mermaid
+flowchart LR
+  A[First request] --> B[Query runs]
+  B --> C[Cache with TTL]
+  C --> D[Later request]
+  D --> E[Cache hit]
+  E --> F[Until TTL expires]
+```
+
 ---
 
 ## Usage
