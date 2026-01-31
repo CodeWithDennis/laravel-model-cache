@@ -51,13 +51,20 @@
         "test:unit": "pest --coverage --exactly=100",
         "test:types": "phpstan",
         "test:refactor": "rector --dry-run",
-        "test": [
+        "review": [
+            "@test:lint",
+            "@test:types"
+        ],
+        "check": [
             "@test:lint",
             "@test:type-coverage",
             "@test:typos",
             "@test:unit",
             "@test:types",
             "@test:refactor"
+        ],
+        "test": [
+            "@check"
         ]
     }
 }

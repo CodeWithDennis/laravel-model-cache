@@ -37,11 +37,14 @@ class CachedBuilder extends Builder
      */
     public function pluck($column, $key = null)
     {
-        $suffix = 'pluck:' . md5(serialize([$column, $key]));
+        $suffix = 'pluck:'.md5(serialize([$column, $key]));
         $cacheKey = $this->queryCacheKey($suffix);
         $ttl = $this->getCacheTtl();
 
-        return Cache::remember($cacheKey, $ttl, fn () => parent::pluck($column, $key));
+        /** @var \Illuminate\Support\Collection<int|string, mixed> $result */
+        $result = Cache::remember($cacheKey, $ttl, fn () => parent::pluck($column, $key));
+
+        return $result;
     }
 
     /**
@@ -50,11 +53,14 @@ class CachedBuilder extends Builder
      */
     public function count($columns = '*')
     {
-        $suffix = 'count:' . md5(serialize($columns));
+        $suffix = 'count:'.md5(serialize($columns));
         $key = $this->queryCacheKey($suffix);
         $ttl = $this->getCacheTtl();
 
-        return (int) Cache::remember($key, $ttl, fn () => parent::count($columns));
+        /** @var int<0, max> $result */
+        $result = Cache::remember($key, $ttl, fn () => parent::count($columns));
+
+        return $result;
     }
 
     public function exists(): bool
@@ -76,7 +82,7 @@ class CachedBuilder extends Builder
      */
     public function sum($column)
     {
-        $suffix = 'sum:' . md5(serialize($column));
+        $suffix = 'sum:'.md5(serialize($column));
         $key = $this->queryCacheKey($suffix);
         $ttl = $this->getCacheTtl();
 
@@ -91,7 +97,7 @@ class CachedBuilder extends Builder
      */
     public function avg($column)
     {
-        $suffix = 'avg:' . md5(serialize($column));
+        $suffix = 'avg:'.md5(serialize($column));
         $key = $this->queryCacheKey($suffix);
         $ttl = $this->getCacheTtl();
 
@@ -104,7 +110,7 @@ class CachedBuilder extends Builder
      */
     public function min($column)
     {
-        $suffix = 'min:' . md5(serialize($column));
+        $suffix = 'min:'.md5(serialize($column));
         $key = $this->queryCacheKey($suffix);
         $ttl = $this->getCacheTtl();
 
@@ -117,7 +123,7 @@ class CachedBuilder extends Builder
      */
     public function max($column)
     {
-        $suffix = 'max:' . md5(serialize($column));
+        $suffix = 'max:'.md5(serialize($column));
         $key = $this->queryCacheKey($suffix);
         $ttl = $this->getCacheTtl();
 
@@ -137,13 +143,16 @@ class CachedBuilder extends Builder
     {
         $model = $this->getModel();
 
-        return method_exists($model, 'cacheTtl') ? $model->cacheTtl() : 600;
+        /** @var int $ttl */
+        $ttl = method_exists($model, 'cacheTtl') ? $model->cacheTtl() : 600;
+
+        return $ttl;
     }
 
     protected function queryCacheKey(string $suffix = ''): string
     {
         $raw = $this->applyScopes()->toBase()->toRawSql();
 
-        return md5($raw . $suffix);
+        return md5($raw.$suffix);
     }
 }
