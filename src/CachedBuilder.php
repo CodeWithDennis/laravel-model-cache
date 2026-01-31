@@ -147,15 +147,16 @@ class CachedBuilder extends Builder
 
     /**
      * @param  callable(): mixed  $callback
-     * @return mixed
      */
     protected function remember(string $key, callable $callback): mixed
     {
+        $closure = \Closure::fromCallable($callback);
+
         if ($this->cacheForever) {
-            return Cache::rememberForever($key, $callback);
+            return Cache::rememberForever($key, $closure);
         }
 
-        return Cache::remember($key, $this->getCacheTtl(), $callback);
+        return Cache::remember($key, $this->getCacheTtl(), $closure);
     }
 
     protected function getCacheTtl(): int
