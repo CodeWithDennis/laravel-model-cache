@@ -55,12 +55,13 @@ From there you get two separate behaviours:
 Add `warmup()` before the query. Run that query once (e.g. in a scheduled command)—the result is cached forever. Every later identical query in your app gets the value from cache.
 
 ```php
-$stats = [
-    'total_revenue' => Order::query()->warmup()->sum('amount'),
-    'total_users'   => User::query()->warmup()->count(),
-];
-
-$countries = Country::query()->warmup()->pluck('name', 'code');
+// e.g. dashboard stats: one complex query, cached forever
+$stats = User::query()
+    ->where('active', true)
+    ->where('created_at', '>=', now()->startOfMonth())
+    ->orderBy('created_at')
+    ->warmup()
+    ->get();
 ```
 
 Put these queries in a Laravel command and schedule it (hourly, daily, or after deploy). Once the command has run, the next user request will already hit cache—**no cold cache for the first visitor**.
@@ -73,8 +74,12 @@ class WarmCache extends Command
 
     public function handle(): int
     {
-        Order::query()->warmup()->sum('amount');
-        User::query()->warmup()->count();
+        User::query()
+            ->where('active', true)
+            ->where('created_at', '>=', now()->startOfMonth())
+            ->orderBy('created_at')
+            ->warmup()
+            ->get();
 
         return self::SUCCESS;
     }
@@ -92,7 +97,10 @@ Use the model as usual, without `warmup()`. The first run hits the database; ide
 
 ```php
 // 1st call: DB. 2nd call: cache
-$users = User::where('active', true)->get();
+$users = User::query()
+    ->where('active', true)
+    ->orderBy('name')
+    ->get();
 ```
 
 ---
@@ -101,12 +109,18 @@ $users = User::where('active', true)->get();
 
 ### Warmup
 
-Same as in Usage: call `warmup()` before the query. Works with all methods listed below.
+Same as in Usage: call `warmup()` before the query. The only thing `warmup()` does is store the result forever instead of using the model's TTL—same caching, no expiry. Works with all methods listed below.
 
 ```php
-Report::query()->warmup()->get();
-Metric::query()->warmup()->sum('value');
+// e.g. revenue this month (sum) or order count (count)
+Order::query()
+    ->where('status', 'completed')
+    ->where('created_at', '>=', now()->startOfMonth())
+    ->warmup()
+    ->sum('amount');
 ```
+
+That query runs once (e.g. in your warmup command); the result is cached forever. Every later identical call—e.g. in a controller or view—gets the summed value from cache instead of hitting the database.
 
 ### Cache TTL (normal mode)
 
@@ -127,10 +141,6 @@ protected int $cacheTtl = 300; // 5 minutes
 ### Cached methods (warmup and TTL)
 
 Both behaviours support: `get`, `first`, `find`, `findMany`, `pluck`, `value`, `sole`, `count`, `exists`, `doesntExist`, `sum`, `avg`, `average`, `min`, `max`, `paginate`, `simplePaginate`.
-
-### How cache keys work
-
-Same for both warmup and TTL: keys are an MD5 hash of the query (raw SQL with bindings) plus a suffix for the operation (`get`, `count`, `pluck:...`, etc.). Same query + same method = same key; different query or method = different key.
 
 ---
 
