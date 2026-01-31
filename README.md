@@ -5,7 +5,7 @@
 [![PHP Version](https://img.shields.io/packagist/php-v/codewithdennis/cache-pre-warming)](https://packagist.org/packages/codewithdennis/cache-pre-warming)
 [![Laravel](https://img.shields.io/badge/Laravel-12.x-red)](https://laravel.com)
 
-Cache your Eloquent query results. When you add the trait, every query on that model is cached after it runs. The only difference is how long the cache lasts: call `warmup()` and the cache never expires; don’t call it and the cache expires after a set time (default 10 minutes).
+This package does two things. **Normal caching:** add the trait to a model and every query is cached after it runs—first run hits the database, later runs with the same query get the result from cache. The cache expires after a set time (default 10 minutes). **Pre-warming:** call `warmup()` before a query and run that query once (e.g. in a scheduled command); the result is cached with no expiry, so the first visitor and everyone after get a fast response.
 
 ---
 
