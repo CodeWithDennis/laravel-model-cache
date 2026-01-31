@@ -64,7 +64,7 @@ $stats = [
 $countries = Country::query()->warmup()->pluck('name', 'code');
 ```
 
-Put these queries in a Laravel command and schedule it (hourly, daily, or after deploy). Once the command has run, the next user request will already hit cache—no cold cache for the first visitor.
+Put these queries in a Laravel command and schedule it (hourly, daily, or after deploy). Once the command has run, the next user request will already hit cache—**no cold cache for the first visitor**.
 
 ```php
 // app/Console/Commands/WarmCache.php
@@ -139,8 +139,6 @@ Keys are an MD5 hash of the query (raw SQL with bindings) plus a short suffix fo
 
 - PHP 8.4+
 - Laravel 12.x
-
-Uses your Laravel cache driver from `config/cache.php`. Models without the trait use the default builder (no caching).
 
 ---
 
