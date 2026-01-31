@@ -1,6 +1,11 @@
-# Cache Pre Warming
+# Cache Pre-Warming
 
-A Laravel package that provides automatic query caching and manual cache pre-warming for Eloquent models.
+[![Tests](https://github.com/CodeWithDennis/cache-pre-warming/actions/workflows/tests.yml/badge.svg?branch=master)](https://github.com/CodeWithDennis/cache-pre-warming/actions/workflows/tests.yml)
+[![License](https://img.shields.io/github/license/CodeWithDennis/cache-pre-warming)](https://github.com/CodeWithDennis/cache-pre-warming/blob/master/LICENSE.md)
+[![PHP Version](https://img.shields.io/packagist/php-v/codewithdennis/cache-pre-warming)](https://packagist.org/packages/codewithdennis/cache-pre-warming)
+[![Laravel](https://img.shields.io/badge/Laravel-12.x-red)](https://laravel.com)
+
+Automatic query caching for Laravel Eloquent models. Use the `HasCache` trait on a model and its read queries (`get`, `first`, `find`, `pluck`, `count`, `exists`, aggregates, pagination, etc.) are cached—the first run hits the database, subsequent identical queries are served from cache until the TTL expires.
 
 ## Installation
 
@@ -8,21 +13,26 @@ A Laravel package that provides automatic query caching and manual cache pre-war
 composer require codewithdennis/cache-pre-warming
 ```
 
-## Why Pre-Warm Cache?
+## What it does
 
-Pre-warming cache improves performance by loading frequently accessed data before users request it. This provides several benefits:
+- **Automatic caching** – No extra code. Queries on models using `HasCache` are cached by default.
+- **Query-keyed** – Cache keys are derived from the query (SQL + bindings), so different queries get different cache entries.
+- **TTL-based** – Cached results expire after a configurable time (default 600 seconds). Uses your Laravel cache driver (file, Redis, Memcached, etc.).
 
-- **Faster Response Times**: Data is already in cache when users request it, eliminating database queries
-- **Eliminate Cold Starts**: Without pre-warming, the first user to visit a page waits while the database query executes and populates the cache. Pre-warming ensures all users get instant responses, including the first visitor
-- **Reduced Database Load**: Move expensive queries to background jobs or scheduled tasks instead of blocking user requests
-- **Predictable Performance**: Pre-load critical data during off-peak hours for consistent response times during peak traffic
-- **Better User Experience**: Homepage content, dashboard statistics, and featured items load instantly
+Cached methods include: `get`, `first`, `find`, `findMany`, `pluck`, `value`, `sole`, `count`, `exists`, `doesntExist`, `sum`, `avg`, `average`, `min`, `max`, `paginate`, `simplePaginate`.
 
-Use pre-warming for dashboard statistics, featured content, or any data that needs to load instantly.
+### How cache keys are generated
+
+Each cache key is an MD5 hash of:
+
+1. **The query** – After applying scopes, the builder’s raw SQL is taken (with bindings replaced). So `User::where('active', true)->get()` and `User::where('active', false)->get()` get different keys.
+2. **A method suffix** – The same query can be used for different operations (`get()` vs `count()` vs `pluck('name')`). A short suffix is appended so each operation has its own cache entry and you don’t mix collections, integers, and other result shapes.
+
+So identical queries for the same method share one cache entry; the same query for different methods (e.g. `get()` and `count()`) do not.
 
 ## Usage
 
-Add the trait to your models:
+Add the trait to any Eloquent model:
 
 ```php
 use CodeWithDennis\CachePreWarming\Traits\HasCache;
@@ -34,63 +44,23 @@ class User extends Model
 }
 ```
 
-### Manual Warmup
-
-Manually pre-warm cache by calling `warmup()` on models or collections. Unlike automatic caching which expires after a TTL, manually warmed cache persists forever until the model is saved or deleted. Use this to pre-load critical data in scheduled jobs or during application startup:
+Then use the model as usual. The first execution of a query runs against the database and stores the result; repeated identical queries return from cache until the TTL expires.
 
 ```php
-Post::query()
-    ->where('published', true)
-    ->where('published_at', '<=', now())
-    ->with(['author', 'category', 'tags'])
-    ->orderBy('published_at', 'desc')
-    ->limit(20)
-    ->get()
-    ->warmup();
-```
-
-**Example: Scheduled Command**
-
-Pre-warm cache in a scheduled command that runs hourly:
-
-```php
-// app/Console/Commands/WarmCache.php
-class WarmCache extends Command
-{
-    protected $signature = 'cache:warm';
-    protected $description = 'Pre-warm frequently accessed data';
-
-    public function handle(): int
-    {
-        Post::where('featured', true)->get()->warmup();
-        User::where('role', 'admin')->get()->warmup();
-        
-        return Command::SUCCESS;
-    }
-}
-
-// app/Console/Kernel.php
-protected function schedule(Schedule $schedule): void
-{
-    $schedule->command('cache:warm')->hourly();
-}
-```
-
-### Automatic Query Caching
-
-All queries are automatically cached when executed. Results are stored with a TTL (Time To Live) of 300 seconds by default, meaning cached results expire after 5 minutes. This happens automatically—no additional code needed:
-
-```php
-// First call executes query and caches result
+// First call: runs query, caches result
 $users = User::where('active', true)->get();
 
-// Second call returns cached result (no database query)
+// Second call: returns cached result (no database query)
 $users = User::where('active', true)->get();
 ```
 
-**Customize TTL:**
+## Customization
 
-Override the `cacheTtl()` method in your model to change the cache duration:
+### Cache TTL
+
+Default TTL is **600 seconds** (10 minutes). Override per model in either of these ways:
+
+**1. Override the method**
 
 ```php
 class User extends Model
@@ -99,13 +69,29 @@ class User extends Model
 
     public function cacheTtl(): int
     {
-        return 600; // Cache for 10 minutes instead of 5
+        return 3600; // 1 hour
     }
 }
 ```
 
-Cached results expire after the TTL. Use any Laravel cache driver (file, Redis, Memcached, etc.).
+**2. Set the property**
+
+```php
+class Post extends Model
+{
+    use HasCache;
+
+    protected int $cacheTtl = 300; // 5 minutes
+}
+```
+
+Models without the trait use the default builder (no caching). Uses your Laravel cache driver from `config/cache.php`.
+
+## Requirements
+
+- PHP 8.4+
+- Laravel 12.x
 
 ## License
 
-MIT
+MIT. See [LICENSE.md](LICENSE.md) for details.
