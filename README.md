@@ -104,7 +104,7 @@ class User extends Model
 }
 ```
 
-Cache is automatically cleared when models are saved or deleted.
+Cached results expire after the TTL. Use any Laravel cache driver (file, Redis, Memcached, etc.).
 
 ## License
 
