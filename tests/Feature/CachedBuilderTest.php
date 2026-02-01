@@ -498,9 +498,10 @@ describe('CachedBuilder', function (): void {
                 User::query()->get();
 
                 $storage = getArrayCacheStorage();
-                expect($storage)->toHaveCount(1);
+                $dataEntries = array_filter($storage, fn (array $_, string $key) => ! str_starts_with($key, 'tag:'), ARRAY_FILTER_USE_BOTH);
+                expect($dataEntries)->toHaveCount(1);
 
-                $entry = array_values($storage)[0];
+                $entry = array_values($dataEntries)[0];
 
                 expect($entry['expiresAt'])->toBeGreaterThan(0)
                     ->and($entry['expiresAt'])->toBeGreaterThan(time())
@@ -516,9 +517,10 @@ describe('CachedBuilder', function (): void {
                 UserWithCustomTtl::query()->get();
 
                 $storage = getArrayCacheStorage();
-                expect($storage)->toHaveCount(1);
+                $dataEntries = array_filter($storage, fn (array $_, string $key) => ! str_starts_with($key, 'tag:'), ARRAY_FILTER_USE_BOTH);
+                expect($dataEntries)->toHaveCount(1);
 
-                $entry = array_values($storage)[0];
+                $entry = array_values($dataEntries)[0];
                 $now = time();
 
                 expect($entry['expiresAt'])->toBeGreaterThan($now + 299)
@@ -534,9 +536,10 @@ describe('CachedBuilder', function (): void {
                 UserWithPropertyTtl::query()->get();
 
                 $storage = getArrayCacheStorage();
-                expect($storage)->toHaveCount(1);
+                $dataEntries = array_filter($storage, fn (array $_, string $key) => ! str_starts_with($key, 'tag:'), ARRAY_FILTER_USE_BOTH);
+                expect($dataEntries)->toHaveCount(1);
 
-                $entry = array_values($storage)[0];
+                $entry = array_values($dataEntries)[0];
                 $now = time();
 
                 expect($entry['expiresAt'])->toBeGreaterThan($now + 122)
@@ -594,10 +597,95 @@ describe('CachedBuilder', function (): void {
                 User::query()->warmup()->get();
 
                 $storage = getArrayCacheStorage();
-                expect($storage)->toHaveCount(1);
+                $dataEntries = array_filter($storage, fn (array $_, string $key) => ! str_starts_with($key, 'tag:'), ARRAY_FILTER_USE_BOTH);
+                expect($dataEntries)->toHaveCount(1);
 
-                $entry = array_values($storage)[0];
+                $entry = array_values($dataEntries)[0];
                 expect($entry['expiresAt'])->toBeIn([0, 0.0]);
+            });
+
+            it('clears cache when record is created', function (): void {
+                User::create([
+                    'name' => 'First',
+                    'score' => 0,
+                ]);
+
+                DB::connection()->enableQueryLog();
+                $first = User::query()->get();
+                $queriesAfterFirst = count(DB::getQueryLog());
+
+                $second = User::query()->get();
+                $queriesAfterSecond = count(DB::getQueryLog());
+
+                expect($first)->toHaveCount(1)
+                    ->and($queriesAfterSecond)->toBe($queriesAfterFirst);
+
+                User::create([
+                    'name' => 'Second',
+                    'score' => 1,
+                ]);
+
+                $third = User::query()->get();
+                $queriesAfterThird = count(DB::getQueryLog());
+
+                expect($third)->toHaveCount(2)
+                    ->and($queriesAfterThird)->toBeGreaterThan($queriesAfterSecond);
+            });
+
+            it('clears cache when record is updated', function (): void {
+                $user = User::create([
+                    'name' => 'Original',
+                    'score' => 0,
+                ]);
+
+                DB::connection()->enableQueryLog();
+                $first = User::query()->get();
+                $queriesAfterFirst = count(DB::getQueryLog());
+
+                $second = User::query()->get();
+                $queriesAfterSecond = count(DB::getQueryLog());
+
+                expect($first)->toHaveCount(1)
+                    ->and($first->first()->name)->toBe('Original')
+                    ->and($queriesAfterSecond)->toBe($queriesAfterFirst);
+
+                $user->update(['name' => 'Updated']);
+
+                $third = User::query()->get();
+                $queriesAfterThird = count(DB::getQueryLog());
+
+                expect($third)->toHaveCount(1)
+                    ->and($third->first()->name)->toBe('Updated')
+                    ->and($queriesAfterThird)->toBeGreaterThan($queriesAfterSecond);
+            });
+
+            it('clears cache when record is deleted', function (): void {
+                User::create([
+                    'name' => 'First',
+                    'score' => 0,
+                ]);
+                $second = User::create([
+                    'name' => 'Second',
+                    'score' => 1,
+                ]);
+
+                DB::connection()->enableQueryLog();
+                $first = User::query()->get();
+                $queriesAfterFirst = count(DB::getQueryLog());
+
+                $cached = User::query()->get();
+                $queriesAfterCached = count(DB::getQueryLog());
+
+                expect($first)->toHaveCount(2)
+                    ->and($queriesAfterCached)->toBe($queriesAfterFirst);
+
+                $second->delete();
+
+                $third = User::query()->get();
+                $queriesAfterThird = count(DB::getQueryLog());
+
+                expect($third)->toHaveCount(1)
+                    ->and($queriesAfterThird)->toBeGreaterThan($queriesAfterCached);
             });
 
             it('caches count indefinitely when using warmup', function (): void {

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace CodeWithDennis\LaravelModelCache;
 
+use CodeWithDennis\LaravelModelCache\Traits\HasCache;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -142,18 +143,43 @@ class CachedBuilder extends Builder
     }
 
     /**
+     * Store with both key (query-based) and tag (model class).
+     * The key identifies the specific query result; the tag groups all cached queries
+     * for the model so we can flush by tag without knowing individual keys.
+     *
      * @param  \Closure(): mixed  $callback
      */
     protected function remember(string $key, \Closure $callback): mixed
     {
+        $tag = $this->getModelTag();
+
         if ($this->cacheForever) {
             $value = $callback();
-            Cache::forever($key, $value);
+            $tag !== null && $this->supportsTags()
+                ? Cache::tags([$tag])->forever($key, $value)
+                : Cache::forever($key, $value);
 
             return $value;
         }
 
-        return Cache::remember($key, $this->getCacheTtl(), $callback);
+        return $tag !== null && $this->supportsTags()
+            ? Cache::tags([$tag])->remember($key, $this->getCacheTtl(), $callback)
+            : Cache::remember($key, $this->getCacheTtl(), $callback);
+    }
+
+    protected function getModelTag(): ?string
+    {
+        $model = $this->getModel();
+        if (! in_array(HasCache::class, class_uses($model), true)) {
+            return null;
+        }
+
+        return $model::class;
+    }
+
+    protected function supportsTags(): bool
+    {
+        return method_exists(Cache::getStore(), 'tags');
     }
 
     protected function getCacheTtl(): int
