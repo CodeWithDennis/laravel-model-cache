@@ -17,9 +17,11 @@ trait HasCache
         static::created(function ($model): void {
             static::flushCollectionCache();
         });
+
         static::updated(function ($model): void {
             static::flushModelCache($model);
         });
+
         static::deleted(function ($model): void {
             static::flushModelCache($model);
         });
@@ -41,7 +43,9 @@ trait HasCache
     protected static function flushModelCache($model): void
     {
         Cache::tags([static::class.':collections'])->flush();
+
         $key = $model->getKey();
+
         if ($key !== null) {
             Cache::tags([static::class.':'.$key])->flush();
         }

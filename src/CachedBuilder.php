@@ -179,6 +179,7 @@ class CachedBuilder extends Builder
     protected function getCacheTags(): array
     {
         $model = $this->getModel();
+
         if (! in_array(HasCache::class, class_uses($model), true)) {
             return [];
         }
@@ -190,11 +191,15 @@ class CachedBuilder extends Builder
             return [$prefix.'collections'];
         }
 
-        return array_map(fn ($id) => $prefix.$id, $ids);
+        return array_map(
+            fn ($id) => $prefix.$id,
+            $ids,
+        );
     }
 
     /**
-     * If the query is constrained only by primary key (= or In), return the id(s). Otherwise null (collection query).
+     * If the query is constrained only by primary key (= or In), return the id(s).
+     * Otherwise null (collection query).
      *
      * @return array<int, int|string>|null
      */
@@ -202,38 +207,99 @@ class CachedBuilder extends Builder
     {
         $query = $this->applyScopes()->getQuery();
         $keyName = $this->getModel()->getQualifiedKeyName();
-        $wheres = $query->wheres ?? [];
 
-        if ($wheres === []) {
+        if ($query->wheres === []) {
             return null;
         }
 
         $ids = [];
-        foreach ($wheres as $where) {
-            $type = $where['type'] ?? null;
-            $column = $where['column'] ?? null;
 
-            if ($column !== $keyName) {
+        foreach ($query->wheres as $where) {
+            if (! is_array($where)) {
                 return null;
             }
 
-            if ($type === 'Basic' && ($where['operator'] ?? null) === '=') {
-                $value = $where['value'] ?? null;
-                if ($value instanceof \BackedEnum) {
-                    $value = $value->value;
-                }
-                $ids[] = $value;
-            } elseif ($type === 'In' || $type === 'InRaw') {
-                $values = $where['values'] ?? [];
-                foreach ($values as $v) {
-                    $ids[] = $v instanceof \BackedEnum ? $v->value : $v;
-                }
-            } else {
+            $clauseIds = $this->extractPrimaryKeyIdsFromClause($where, $keyName);
+
+            if ($clauseIds === null) {
                 return null;
             }
+
+            $ids = [...$ids, ...$clauseIds];
         }
 
-        return $ids === [] ? null : array_values(array_unique($ids));
+        $result = array_values(array_unique($ids));
+
+        return $result === [] ? null : $result;
+    }
+
+    /**
+     * Extract primary key id(s) from a single where clause if it constrains only the given key.
+     *
+     * @param  array<mixed, mixed>  $where
+     * @return array<int, int|string>|null
+     */
+    private function extractPrimaryKeyIdsFromClause(array $where, string $keyName): ?array
+    {
+        if (($where['column'] ?? null) !== $keyName) {
+            return null;
+        }
+
+        $type = $where['type'] ?? null;
+
+        if ($type === 'Basic' && ($where['operator'] ?? null) === '=') {
+            return $this->singleIdOrNull($where['value'] ?? null);
+        }
+
+        if ($type === 'In' || $type === 'InRaw') {
+            $values = $where['values'] ?? [];
+
+            if (! is_array($values)) {
+                return null;
+            }
+
+            return $this->idsFromValues($values);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<int, int|string>|null
+     */
+    private function singleIdOrNull(mixed $value): ?array
+    {
+        $id = $this->normalizeId($value);
+
+        return $id !== null ? [$id] : null;
+    }
+
+    /**
+     * @param  array<mixed>  $values
+     * @return array<int, int|string>|null
+     */
+    private function idsFromValues(array $values): ?array
+    {
+        $ids = [];
+
+        foreach ($values as $value) {
+            $id = $this->normalizeId($value);
+
+            if ($id === null) {
+                return null;
+            }
+
+            $ids[] = $id;
+        }
+
+        return $ids;
+    }
+
+    private function normalizeId(mixed $value): int|string|null
+    {
+        $value = $value instanceof \BackedEnum ? $value->value : $value;
+
+        return is_int($value) || is_string($value) ? $value : null;
     }
 
     protected function getCacheTtl(): int
