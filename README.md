@@ -1,8 +1,10 @@
-# Laravel Model Cache
+# Cache Pre-Warming
 
-[![Tests](https://github.com/CodeWithDennis/laravel-model-cache/actions/workflows/tests.yml/badge.svg?branch=master)](https://github.com/CodeWithDennis/laravel-model-cache/actions/workflows/tests.yml)
-[![License](https://img.shields.io/github/license/CodeWithDennis/laravel-model-cache)](https://github.com/CodeWithDennis/laravel-model-cache/blob/master/LICENSE.md)
-[![PHP Version](https://img.shields.io/packagist/php-v/codewithdennis/laravel-model-cache)](https://packagist.org/packages/codewithdennis/laravel-model-cache)
+> **Currently in beta**
+
+[![Tests](https://github.com/CodeWithDennis/cache-pre-warming/actions/workflows/tests.yml/badge.svg?branch=master)](https://github.com/CodeWithDennis/cache-pre-warming/actions/workflows/tests.yml)
+[![License](https://img.shields.io/github/license/CodeWithDennis/cache-pre-warming)](https://github.com/CodeWithDennis/cache-pre-warming/blob/master/LICENSE.md)
+[![PHP Version](https://img.shields.io/packagist/php-v/codewithdennis/cache-pre-warming)](https://packagist.org/packages/codewithdennis/cache-pre-warming)
 [![Laravel](https://img.shields.io/badge/Laravel-12.x-red)](https://laravel.com)
 
 This package does two things.
@@ -16,7 +18,7 @@ This package does two things.
 ## Installation
 
 ```bash
-composer require codewithdennis/laravel-model-cache
+composer require codewithdennis/cache-pre-warming
 ```
 
 ---
@@ -26,7 +28,7 @@ composer require codewithdennis/laravel-model-cache
 Add the trait to any model:
 
 ```php
-use CodeWithDennis\LaravelModelCache\Traits\HasCache;
+use CodeWithDennis\CachePreWarming\Traits\HasCache;
 
 class User extends Model
 {
