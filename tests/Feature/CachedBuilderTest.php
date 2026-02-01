@@ -6,9 +6,8 @@ use Illuminate\Cache\ArrayStore;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Tests\Stubs\User;
-use Tests\TestCase;
-
-uses(TestCase::class);
+use Tests\Stubs\UserWithCustomTtl;
+use Tests\Stubs\UserWithPropertyTtl;
 
 beforeEach(function (): void {
     Cache::flush();
@@ -50,8 +49,14 @@ function assertSecondCallFromCache(callable $query): array
     $second = $query();
     $queryCountAfterSecond = count(DB::getQueryLog());
 
-    expect($queryCountAfterFirst)->toBeGreaterThan(0, 'First call should execute database queries');
-    expect($queryCountAfterSecond)->toBe($queryCountAfterFirst, 'Second call should not run new queries (must be served from cache)');
+    expect($queryCountAfterFirst)->toBeGreaterThan(
+        0,
+        'First call should execute database queries'
+    );
+    expect($queryCountAfterSecond)->toBe(
+        $queryCountAfterFirst,
+        'Second call should not run new queries (must be served from cache)'
+    );
 
     return [$first, $second];
 }
@@ -60,8 +65,14 @@ describe('CachedBuilder', function (): void {
     describe('collections', function (): void {
         describe('get', function (): void {
             it('runs query on first call and serves from cache on second call', function (): void {
-                User::create(['name' => 'A', 'score' => 1]);
-                User::create(['name' => 'B', 'score' => 2]);
+                User::create([
+                    'name' => 'A',
+                    'score' => 1,
+                ]);
+                User::create([
+                    'name' => 'B',
+                    'score' => 2,
+                ]);
 
                 [$first, $second] = assertSecondCallFromCache(fn () => User::query()->get());
 
@@ -69,15 +80,34 @@ describe('CachedBuilder', function (): void {
                     ->and($first)->toHaveCount(2);
             });
 
+            it('caches empty collection when table is empty', function (): void {
+                [$first, $second] = assertSecondCallFromCache(fn () => User::query()->get());
+
+                expect($first)->toBe($second)
+                    ->and($first)->toBeEmpty();
+            });
+
             it('uses different cache keys for different queries (each runs once)', function (): void {
-                User::create(['name' => 'A', 'score' => 1]);
-                User::create(['name' => 'B', 'score' => 2]);
-                User::create(['name' => 'C', 'score' => 3, 'active' => false]);
+                User::create([
+                    'name' => 'A',
+                    'score' => 1,
+                ]);
+                User::create([
+                    'name' => 'B',
+                    'score' => 2,
+                ]);
+                User::create([
+                    'name' => 'C',
+                    'score' => 3,
+                    'active' => false,
+                ]);
 
                 DB::connection()->enableQueryLog();
                 $all = User::query()->get();
                 $queriesAfterAll = count(DB::getQueryLog());
-                $active = User::query()->where('active', true)->get();
+                $active = User::query()
+                    ->where('active', true)
+                    ->get();
                 $queriesAfterActive = count(DB::getQueryLog());
 
                 expect($all)->not->toBe($active)
@@ -86,7 +116,9 @@ describe('CachedBuilder', function (): void {
                     ->and($queriesAfterAll)->toBeGreaterThan(0)
                     ->and($queriesAfterActive)->toBeGreaterThan($queriesAfterAll);
 
-                $activeAgain = User::query()->where('active', true)->get();
+                $activeAgain = User::query()
+                    ->where('active', true)
+                    ->get();
                 expect(count(DB::getQueryLog()))->toBe($queriesAfterActive)
                     ->and($activeAgain)->toBe($active);
             });
@@ -94,7 +126,10 @@ describe('CachedBuilder', function (): void {
 
         describe('first', function (): void {
             it('runs query on first call and serves from cache on second call', function (): void {
-                User::create(['name' => 'Alice', 'score' => 0]);
+                User::create([
+                    'name' => 'Alice',
+                    'score' => 0,
+                ]);
 
                 [$first, $second] = assertSecondCallFromCache(fn () => User::query()->first());
 
@@ -105,22 +140,42 @@ describe('CachedBuilder', function (): void {
 
         describe('find', function (): void {
             it('runs query on first call and serves from cache on second call', function (): void {
-                $user = User::create(['name' => 'Bob', 'score' => 0]);
+                $user = User::create([
+                    'name' => 'Bob',
+                    'score' => 0,
+                ]);
 
                 [$first, $second] = assertSecondCallFromCache(fn () => User::query()->find($user->id));
 
                 expect($first)->toBe($second)
                     ->and($first->name)->toBe('Bob');
             });
+
+            it('caches null for non-existent id', function (): void {
+                [$first, $second] = assertSecondCallFromCache(
+                    fn () => User::query()->find(99999)
+                );
+
+                expect($first)->toBeNull()
+                    ->and($second)->toBeNull();
+            });
         });
 
         describe('findMany', function (): void {
             it('runs query on first call and serves from cache on second call', function (): void {
-                $u1 = User::create(['name' => 'X', 'score' => 0]);
-                $u2 = User::create(['name' => 'Y', 'score' => 0]);
+                $u1 = User::create([
+                    'name' => 'X',
+                    'score' => 0,
+                ]);
+                $u2 = User::create([
+                    'name' => 'Y',
+                    'score' => 0,
+                ]);
                 $ids = [$u1->id, $u2->id];
 
-                [$first, $second] = assertSecondCallFromCache(fn () => User::query()->findMany($ids));
+                [$first, $second] = assertSecondCallFromCache(
+                    fn () => User::query()->findMany($ids)
+                );
 
                 expect($first)->toBe($second)
                     ->and($first)->toHaveCount(2);
@@ -129,17 +184,30 @@ describe('CachedBuilder', function (): void {
 
         describe('pluck', function (): void {
             it('runs query on first call and serves from cache on second call', function (): void {
-                User::create(['name' => 'A', 'score' => 0]);
-                User::create(['name' => 'B', 'score' => 0]);
+                User::create([
+                    'name' => 'A',
+                    'score' => 0,
+                ]);
+                User::create([
+                    'name' => 'B',
+                    'score' => 0,
+                ]);
 
-                [$first, $second] = assertSecondCallFromCache(fn () => User::query()->orderBy('id')->pluck('name'));
+                [$first, $second] = assertSecondCallFromCache(
+                    fn () => User::query()
+                        ->orderBy('id')
+                        ->pluck('name')
+                );
 
                 expect($first)->toBe($second)
                     ->and($first->values()->all())->toBe(['A', 'B']);
             });
 
             it('uses different cache for pluck vs get (second call to each runs no new queries)', function (): void {
-                User::create(['name' => 'Only', 'score' => 0]);
+                User::create([
+                    'name' => 'Only',
+                    'score' => 0,
+                ]);
 
                 DB::connection()->enableQueryLog();
                 User::query()->get();
@@ -161,7 +229,10 @@ describe('CachedBuilder', function (): void {
 
         describe('value', function (): void {
             it('runs query on first call and serves from cache on second call', function (): void {
-                User::create(['name' => 'Charlie', 'score' => 0]);
+                User::create([
+                    'name' => 'Charlie',
+                    'score' => 0,
+                ]);
 
                 [$first, $second] = assertSecondCallFromCache(fn () => User::query()->value('name'));
 
@@ -172,9 +243,16 @@ describe('CachedBuilder', function (): void {
 
         describe('sole', function (): void {
             it('runs query on first call and serves from cache on second call', function (): void {
-                User::create(['name' => 'Sole', 'score' => 0]);
+                User::create([
+                    'name' => 'Sole',
+                    'score' => 0,
+                ]);
 
-                [$first, $second] = assertSecondCallFromCache(fn () => User::query()->where('name', 'Sole')->sole());
+                [$first, $second] = assertSecondCallFromCache(
+                    fn () => User::query()
+                        ->where('name', 'Sole')
+                        ->sole()
+                );
 
                 expect($first)->toBe($second)
                     ->and($first->name)->toBe('Sole');
@@ -189,7 +267,9 @@ describe('CachedBuilder', function (): void {
                 User::create(['name' => 'B', 'score' => 0]);
                 User::create(['name' => 'C', 'score' => 0]);
 
-                [$first, $second] = assertSecondCallFromCache(fn () => User::query()->count());
+                [$first, $second] = assertSecondCallFromCache(
+                    fn () => User::query()->count()
+                );
 
                 expect($first)->toBe($second)
                     ->and($first)->toBe(3);
@@ -198,22 +278,47 @@ describe('CachedBuilder', function (): void {
 
         describe('sum', function (): void {
             it('runs query on first call and serves from cache on second call', function (): void {
-                User::create(['name' => 'A', 'score' => 10]);
-                User::create(['name' => 'B', 'score' => 20]);
+                User::create([
+                    'name' => 'A',
+                    'score' => 10,
+                ]);
+                User::create([
+                    'name' => 'B',
+                    'score' => 20,
+                ]);
 
-                [$first, $second] = assertSecondCallFromCache(fn () => User::query()->sum('score'));
+                [$first, $second] = assertSecondCallFromCache(
+                    fn () => User::query()->sum('score')
+                );
 
                 expect($first)->toBe($second)
                     ->and($first)->toBe(30);
+            });
+
+            it('returns 0 and caches when no rows match', function (): void {
+                [$first, $second] = assertSecondCallFromCache(
+                    fn () => User::query()->sum('score')
+                );
+
+                expect($first)->toBe(0)
+                    ->and($second)->toBe(0);
             });
         });
 
         describe('avg', function (): void {
             it('runs query on first call and serves from cache on second call', function (): void {
-                User::create(['name' => 'A', 'score' => 10]);
-                User::create(['name' => 'B', 'score' => 20]);
+                User::create([
+                    'name' => 'A',
+                    'score' => 10,
+                ]);
+                User::create([
+                    'name' => 'B',
+                    'score' => 20,
+                ]);
 
-                [$first, $second] = assertSecondCallFromCache(fn () => User::query()->avg('score'));
+                [$first, $second] = assertSecondCallFromCache(
+                    fn () => User::query()->avg('score')
+                );
 
                 expect($first)->toBe($second)
                     ->and($first)->toBe(15.0);
@@ -222,9 +327,14 @@ describe('CachedBuilder', function (): void {
 
         describe('average', function (): void {
             it('runs query on first call and serves from cache on second call', function (): void {
-                User::create(['name' => 'A', 'score' => 100]);
+                User::create([
+                    'name' => 'A',
+                    'score' => 100,
+                ]);
 
-                [$first, $second] = assertSecondCallFromCache(fn () => User::query()->average('score'));
+                [$first, $second] = assertSecondCallFromCache(
+                    fn () => User::query()->average('score')
+                );
 
                 expect($first)->toBe($second)
                     ->and($first)->toBe(100.0);
@@ -233,10 +343,18 @@ describe('CachedBuilder', function (): void {
 
         describe('min', function (): void {
             it('runs query on first call and serves from cache on second call', function (): void {
-                User::create(['name' => 'A', 'score' => 5]);
-                User::create(['name' => 'B', 'score' => 15]);
+                User::create([
+                    'name' => 'A',
+                    'score' => 5,
+                ]);
+                User::create([
+                    'name' => 'B',
+                    'score' => 15,
+                ]);
 
-                [$first, $second] = assertSecondCallFromCache(fn () => User::query()->min('score'));
+                [$first, $second] = assertSecondCallFromCache(
+                    fn () => User::query()->min('score')
+                );
 
                 expect($first)->toBe($second)
                     ->and($first)->toBe(5);
@@ -245,10 +363,18 @@ describe('CachedBuilder', function (): void {
 
         describe('max', function (): void {
             it('runs query on first call and serves from cache on second call', function (): void {
-                User::create(['name' => 'A', 'score' => 5]);
-                User::create(['name' => 'B', 'score' => 15]);
+                User::create([
+                    'name' => 'A',
+                    'score' => 5,
+                ]);
+                User::create([
+                    'name' => 'B',
+                    'score' => 15,
+                ]);
 
-                [$first, $second] = assertSecondCallFromCache(fn () => User::query()->max('score'));
+                [$first, $second] = assertSecondCallFromCache(
+                    fn () => User::query()->max('score')
+                );
 
                 expect($first)->toBe($second)
                     ->and($first)->toBe(15);
@@ -259,16 +385,25 @@ describe('CachedBuilder', function (): void {
     describe('existence', function (): void {
         describe('exists', function (): void {
             it('runs query on first call and serves from cache on second call', function (): void {
-                User::create(['name' => 'X', 'score' => 0]);
+                User::create([
+                    'name' => 'X',
+                    'score' => 0,
+                ]);
 
-                [$first, $second] = assertSecondCallFromCache(fn () => User::query()->exists());
+                [$first, $second] = assertSecondCallFromCache(
+                    fn () => User::query()->exists()
+                );
 
                 expect($first)->toBe($second)
                     ->and($first)->toBeTrue();
             });
 
             it('caches non-existence (no new queries on second call)', function (): void {
-                [$first, $second] = assertSecondCallFromCache(fn () => User::query()->where('id', 99999)->exists());
+                [$first, $second] = assertSecondCallFromCache(
+                    fn () => User::query()
+                        ->where('id', 99999)
+                        ->exists()
+                );
 
                 expect($first)->toBe($second)
                     ->and($first)->toBeFalse();
@@ -277,7 +412,11 @@ describe('CachedBuilder', function (): void {
 
         describe('doesntExist', function (): void {
             it('runs query on first call and serves from cache on second call', function (): void {
-                [$first, $second] = assertSecondCallFromCache(fn () => User::query()->where('id', 99999)->doesntExist());
+                [$first, $second] = assertSecondCallFromCache(
+                    fn () => User::query()
+                        ->where('id', 99999)
+                        ->doesntExist()
+                );
 
                 expect($first)->toBe($second)
                     ->and($first)->toBeTrue();
@@ -289,7 +428,10 @@ describe('CachedBuilder', function (): void {
         describe('paginate', function (): void {
             it('caches get() result so second call runs only count query (not get)', function (): void {
                 foreach (['A', 'B', 'C', 'D', 'E'] as $name) {
-                    User::create(['name' => $name, 'score' => 0]);
+                    User::create([
+                        'name' => $name,
+                        'score' => 0,
+                    ]);
                 }
 
                 DB::connection()->enableQueryLog();
@@ -308,11 +450,22 @@ describe('CachedBuilder', function (): void {
 
         describe('simplePaginate', function (): void {
             it('runs query on first call and serves from cache on second call', function (): void {
-                User::create(['name' => 'A', 'score' => 0]);
-                User::create(['name' => 'B', 'score' => 0]);
-                User::create(['name' => 'C', 'score' => 0]);
+                User::create([
+                    'name' => 'A',
+                    'score' => 0,
+                ]);
+                User::create([
+                    'name' => 'B',
+                    'score' => 0,
+                ]);
+                User::create([
+                    'name' => 'C',
+                    'score' => 0,
+                ]);
 
-                [$first, $second] = assertSecondCallFromCache(fn () => User::query()->simplePaginate(2));
+                [$first, $second] = assertSecondCallFromCache(
+                    fn () => User::query()->simplePaginate(2)
+                );
 
                 expect($first->items())->toBe($second->items());
             });
@@ -322,9 +475,14 @@ describe('CachedBuilder', function (): void {
     describe('model', function (): void {
         describe('cache TTL', function (): void {
             it('uses model cacheTtl when model has HasCache (second call from cache)', function (): void {
-                User::create(['name' => 'Ttl', 'score' => 0]);
+                User::create([
+                    'name' => 'Ttl',
+                    'score' => 0,
+                ]);
 
-                [$first, $second] = assertSecondCallFromCache(fn () => User::query()->get());
+                [$first, $second] = assertSecondCallFromCache(
+                    fn () => User::query()->get()
+                );
 
                 expect($first)->toBe($second)
                     ->and($first)->toHaveCount(1)
@@ -332,7 +490,10 @@ describe('CachedBuilder', function (): void {
             });
 
             it('stores cache with finite TTL (expiresAt in the future)', function (): void {
-                User::create(['name' => 'Ttl', 'score' => 0]);
+                User::create([
+                    'name' => 'Ttl',
+                    'score' => 0,
+                ]);
 
                 User::query()->get();
 
@@ -340,15 +501,55 @@ describe('CachedBuilder', function (): void {
                 expect($storage)->toHaveCount(1);
 
                 $entry = array_values($storage)[0];
+
                 expect($entry['expiresAt'])->toBeGreaterThan(0)
                     ->and($entry['expiresAt'])->toBeGreaterThan(time())
                     ->and($entry['expiresAt'])->toBeLessThanOrEqual(time() + 601);
+            });
+
+            it('uses custom model cacheTtl when storing cache', function (): void {
+                User::create([
+                    'name' => 'CustomTtl',
+                    'score' => 0,
+                ]);
+
+                UserWithCustomTtl::query()->get();
+
+                $storage = getArrayCacheStorage();
+                expect($storage)->toHaveCount(1);
+
+                $entry = array_values($storage)[0];
+                $now = time();
+
+                expect($entry['expiresAt'])->toBeGreaterThan($now + 299)
+                    ->and($entry['expiresAt'])->toBeLessThanOrEqual($now + 305);
+            });
+
+            it('uses custom model cacheTtl property when storing cache', function (): void {
+                User::create([
+                    'name' => 'PropertyTtl',
+                    'score' => 0,
+                ]);
+
+                UserWithPropertyTtl::query()->get();
+
+                $storage = getArrayCacheStorage();
+                expect($storage)->toHaveCount(1);
+
+                $entry = array_values($storage)[0];
+                $now = time();
+
+                expect($entry['expiresAt'])->toBeGreaterThan($now + 122)
+                    ->and($entry['expiresAt'])->toBeLessThanOrEqual($now + 128);
             });
         });
 
         describe('warmup', function (): void {
             it('populates cache indefinitely (get() without warmup serves from cache)', function (): void {
-                User::create(['name' => 'Warmup', 'score' => 0]);
+                User::create([
+                    'name' => 'Warmup',
+                    'score' => 0,
+                ]);
 
                 DB::connection()->enableQueryLog();
                 $warmup = User::query()->warmup()->get();
@@ -362,21 +563,33 @@ describe('CachedBuilder', function (): void {
                 expect($queryCountAfterWarmup)->toBeGreaterThan(0, 'Warmup should execute database query');
                 expect($queryCountAfterFirstGet)->toBe($queryCountAfterWarmup, 'First get() should be from cache');
                 expect($queryCountAfterSecondGet)->toBe($queryCountAfterWarmup, 'Second get() should be from cache');
-                expect($first)->toBe($second)->and($first)->toHaveCount(1)->and($first->first()->name)->toBe('Warmup');
+                expect($first)->toBe($second)
+                    ->and($first)->toHaveCount(1)
+                    ->and($first->first()->name)->toBe('Warmup');
             });
 
             it('refreshes cache when warmup() is called again (returns new value)', function (): void {
-                User::create(['name' => 'Warmup', 'score' => 0]);
+                User::create([
+                    'name' => 'Warmup',
+                    'score' => 0,
+                ]);
                 User::query()->warmup()->get();
 
-                User::create(['name' => 'WarmupTwo', 'score' => 1]);
+                User::create([
+                    'name' => 'WarmupTwo',
+                    'score' => 1,
+                ]);
                 $refreshed = User::query()->warmup()->get();
+
                 expect($refreshed)->toHaveCount(2)
                     ->and($refreshed->pluck('name')->all())->toBe(['Warmup', 'WarmupTwo']);
             });
 
             it('stores cache with no expiration (expiresAt is 0)', function (): void {
-                User::create(['name' => 'Warmup', 'score' => 0]);
+                User::create([
+                    'name' => 'Warmup',
+                    'score' => 0,
+                ]);
 
                 User::query()->warmup()->get();
 
@@ -385,6 +598,29 @@ describe('CachedBuilder', function (): void {
 
                 $entry = array_values($storage)[0];
                 expect($entry['expiresAt'])->toBeIn([0, 0.0]);
+            });
+
+            it('caches count indefinitely when using warmup', function (): void {
+                User::create([
+                    'name' => 'A',
+                    'score' => 0,
+                ]);
+                User::create([
+                    'name' => 'B',
+                    'score' => 0,
+                ]);
+
+                DB::connection()->enableQueryLog();
+                $warmupCount = User::query()->warmup()->count();
+                $queryCountAfterWarmup = count(DB::getQueryLog());
+
+                $first = User::query()->count();
+                $second = User::query()->count();
+
+                expect($warmupCount)->toBe(2)
+                    ->and($first)->toBe(2)
+                    ->and($second)->toBe(2)
+                    ->and(count(DB::getQueryLog()))->toBe($queryCountAfterWarmup);
             });
         });
     });
