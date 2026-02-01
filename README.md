@@ -2,9 +2,9 @@
 
 > **Currently in beta**
 
-[![Tests](https://github.com/CodeWithDennis/cache-pre-warming/actions/workflows/tests.yml/badge.svg?branch=master)](https://github.com/CodeWithDennis/cache-pre-warming/actions/workflows/tests.yml)
-[![License](https://img.shields.io/github/license/CodeWithDennis/cache-pre-warming)](https://github.com/CodeWithDennis/cache-pre-warming/blob/master/LICENSE.md)
-[![PHP Version](https://img.shields.io/packagist/php-v/codewithdennis/cache-pre-warming)](https://packagist.org/packages/codewithdennis/cache-pre-warming)
+[![Tests](https://github.com/CodeWithDennis/laravel-model-cache/actions/workflows/tests.yml/badge.svg?branch=master)](https://github.com/CodeWithDennis/laravel-model-cache/actions/workflows/tests.yml)
+[![License](https://img.shields.io/github/license/CodeWithDennis/laravel-model-cache)](https://github.com/CodeWithDennis/laravel-model-cache/blob/master/LICENSE.md)
+[![PHP Version](https://img.shields.io/packagist/php-v/codewithdennis/laravel-model-cache)](https://packagist.org/packages/codewithdennis/laravel-model-cache)
 [![Laravel](https://img.shields.io/badge/Laravel-12.x-red)](https://laravel.com)
 
 Add the trait to a model and get TTL-based query caching. Optionally use pre-warming to cache heavy queries indefinitely.
@@ -14,7 +14,7 @@ Add the trait to a model and get TTL-based query caching. Optionally use pre-war
 ## Installation
 
 ```bash
-composer require codewithdennis/cache-pre-warming
+composer require codewithdennis/laravel-model-cache
 ```
 
 **Cache driver:** Use a driver that supports tags (`array`, `redis`, or `memcached`). The `file` and `database` drivers do not support tagging; cache invalidation on model events will not work with them.
@@ -22,13 +22,18 @@ composer require codewithdennis/cache-pre-warming
 Add the trait to any model:
 
 ```php
-use CodeWithDennis\CachePreWarming\Traits\HasCache;
+use CodeWithDennis\LaravelModelCache\Traits\HasCache;
 
 class User extends Model
 {
     use HasCache;
 }
 ```
+
+**Cache not busting when you run `Category::create([...])`?**  
+1. **Use the trait on that model** — e.g. `class Category extends Model { use HasCache; }`. Without it, no flush runs on create/update/delete.  
+2. **Use a tag-capable driver** — set `CACHE_STORE=redis` (or `memcached`). The `file` and `database` drivers do not support tags; if you use them, the package will throw a clear exception on create/update/delete.  
+3. **Use Eloquent, not query builder** — `Category::create([...])` and `$category->save()` fire model events; `Category::insert([...])` does not.
 
 ---
 
@@ -145,12 +150,7 @@ Both normal caching and pre-warming support:
 
 ## Cache invalidation
 
-Cache is invalidated automatically on model **created**, **updated**, **deleted**, and **restored** (soft deletes) events.
-
-- **Single-id queries** (e.g. `find($id)`): Cache key is `Model::class.':'.$id`. On update/delete/restore of that model we forget only that key, so other find-by-id caches stay valid.
-- **Collection queries** (e.g. `get()`, `where(...)->get()`): Cached with one tag per model; any change flushes that tag so the next request hits the database.
-
-**Mass operations:** `Model::where(...)->update([...])` and `Model::where(...)->delete()` do not fire model events in Laravel, so cache is not invalidated. Prefer per-model `$model->update()` / `$model->delete()`, or clear the relevant cache manually when using mass operations.
+Cache is invalidated automatically on model **created**, **updated**, **deleted**, and **restored** (soft deletes) events. All cached queries for that model use one tag per model class; any change flushes it so the next request hits the database.
 
 ---
 

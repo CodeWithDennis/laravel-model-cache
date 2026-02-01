@@ -170,70 +170,35 @@ class CachedBuilder extends Builder
     }
 
     /**
-     * Single tag per model for collection queries. No tag for single-id (key-based bust).
+     * One tag per model. Uses the model's cacheTag() so store and flush always use the same tag (Redis).
      *
      * @return array<int, string>
      */
     protected function getCacheTags(): array
     {
         $model = $this->getModel();
+        $modelClass = get_class($model);
 
-        if (! in_array(HasCache::class, class_uses($model), true)) {
+        if (! in_array(HasCache::class, class_uses_recursive($modelClass), true)) {
             return [];
         }
 
-        if ($this->getSingleIdFromQuery() !== null) {
-            return [];
-        }
-
-        return [$model::class];
+        /** @var array<int, string> */
+        // @phpstan-ignore-next-line staticMethod.notFound (model uses HasCache, cacheTag() exists)
+        return $modelClass::cacheTag();
     }
 
     /**
-     * For single-id queries (e.g. find($id)): model::class.':'.$id for targeted bust.
-     * Otherwise: model::class.':'.md5(sql) with tag flush on any change.
+     * Cache key: model class + ':' + md5(rawSql + suffix).
      */
     protected function queryCacheKey(string $suffix = ''): string
     {
         $model = $this->getModel();
-        $prefix = in_array(HasCache::class, class_uses($model), true) ? $model::class.':' : '';
-        $singleId = $this->getSingleIdFromQuery();
-
-        if ($singleId !== null) {
-            return $prefix.$singleId.($suffix !== '' ? ':'.$suffix : '');
-        }
-
+        $modelClass = get_class($model);
+        $prefix = in_array(HasCache::class, class_uses_recursive($modelClass), true) ? $modelClass.':' : '';
         $raw = $this->applyScopes()->toBase()->toRawSql();
 
         return $prefix.md5($raw.$suffix);
-    }
-
-    /**
-     * Only for a single top-level where(key, '=', id). Enables key-based cache bust per model.
-     *
-     * @return int|string|null
-     */
-    protected function getSingleIdFromQuery(): int|string|null
-    {
-        $query = $this->applyScopes()->getQuery();
-        $keyName = $this->getModel()->getQualifiedKeyName();
-
-        if (count($query->wheres) !== 1) {
-            return null;
-        }
-
-        $where = $query->wheres[0];
-        if (! is_array($where) || ($where['type'] ?? null) !== 'Basic') {
-            return null;
-        }
-        if (($where['column'] ?? null) !== $keyName || ($where['operator'] ?? null) !== '=') {
-            return null;
-        }
-
-        $value = $where['value'] ?? null;
-        $value = $value instanceof \BackedEnum ? $value->value : $value;
-
-        return is_int($value) || is_string($value) ? $value : null;
     }
 
     protected function getCacheTtl(): int

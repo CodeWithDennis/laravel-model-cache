@@ -6,6 +6,7 @@ namespace CodeWithDennis\LaravelModelCache\Traits;
 
 use CodeWithDennis\LaravelModelCache\CachedBuilder;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Cache;
 
@@ -15,43 +16,28 @@ trait HasCache
 
     public static function bootHasCache(): void
     {
-        static::created(fn () => static::flushCache());
-        static::updated(function ($model): void {
-            static::forgetModelKey($model);
-            static::flushCache();
-        });
-        static::deleted(function ($model): void {
-            static::forgetModelKey($model);
-            static::flushCache();
-        });
+        $flush = static function (Model $model): void {
+            Cache::tags($model::cacheTag())->flush();
+        };
+
+        foreach (['created', 'updated', 'deleted'] as $event) {
+            static::$event($flush);
+        }
 
         if (in_array(SoftDeletes::class, class_uses_recursive(static::class), true)) {
-            static::restored(function ($model): void {
-                static::forgetModelKey($model);
-                static::flushCache();
-            });
+            static::restored($flush);
         }
     }
 
     /**
-     * Forget cache key for this model id (find($id)). Enables targeted bust.
+     * Tag used for all cached queries for this model. Must match the tag used when storing (model class name).
+     * For manual invalidation: Cache::tags(MyModel::cacheTag())->flush().
      *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
+     * @return array<int, string>
      */
-    protected static function forgetModelKey($model): void
+    public static function cacheTag(): array
     {
-        $key = $model->getKey();
-        if ($key !== null) {
-            Cache::forget(static::class.':'.$key);
-        }
-    }
-
-    /**
-     * Flush all cache for this model (collection queries). Called on create/update/delete/restore.
-     */
-    protected static function flushCache(): void
-    {
-        Cache::tags([static::class])->flush();
+        return [static::class];
     }
 
     public function newEloquentBuilder($query): Builder

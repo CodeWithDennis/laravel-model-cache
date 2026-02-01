@@ -604,173 +604,60 @@ describe('CachedBuilder', function (): void {
                 expect($entry['expiresAt'])->toBeIn([0, 0.0]);
             });
 
-            it('creating a record invalidates collection cache so the next get() hits the database', function (): void {
-                User::create([
-                    'name' => 'First',
-                    'score' => 0,
-                ]);
+            describe('cache invalidation', function (): void {
+                it('create flushes cache so next get() hits the database and returns new data', function (): void {
+                    User::create(['name' => 'First', 'score' => 0]);
 
-                DB::connection()->enableQueryLog();
-                $first = User::query()->get();
-                $queriesAfterFirst = count(DB::getQueryLog());
+                    DB::connection()->enableQueryLog();
+                    User::query()->get();
+                    User::query()->get();
+                    $queriesAfterCached = count(DB::getQueryLog());
 
-                $second = User::query()->get();
-                $queriesAfterSecond = count(DB::getQueryLog());
+                    User::create(['name' => 'Second', 'score' => 1]);
 
-                expect($first)->toHaveCount(1)
-                    ->and($queriesAfterSecond)->toBe($queriesAfterFirst);
+                    $afterCreate = User::query()->get();
+                    $queriesAfterCreate = count(DB::getQueryLog());
 
-                User::create([
-                    'name' => 'Second',
-                    'score' => 1,
-                ]);
+                    expect($queriesAfterCreate)->toBeGreaterThan($queriesAfterCached, 'Cache must be flushed on create')
+                        ->and($afterCreate)->toHaveCount(2)
+                        ->and($afterCreate->pluck('name')->all())->toContain('First', 'Second');
+                });
 
-                $third = User::query()->get();
-                $queriesAfterThird = count(DB::getQueryLog());
+                it('update flushes cache so next get() hits the database and returns updated data', function (): void {
+                    $user = User::create(['name' => 'Original', 'score' => 0]);
 
-                expect($third)->toHaveCount(2)
-                    ->and($queriesAfterThird)->toBeGreaterThan($queriesAfterSecond);
-            });
+                    DB::connection()->enableQueryLog();
+                    User::query()->get();
+                    User::query()->get();
+                    $queriesAfterCached = count(DB::getQueryLog());
 
-            it('updating a record invalidates collection cache so the next get() returns fresh data', function (): void {
-                $user = User::create([
-                    'name' => 'Original',
-                    'score' => 0,
-                ]);
+                    $user->update(['name' => 'Updated']);
 
-                DB::connection()->enableQueryLog();
-                $first = User::query()->get();
-                $queriesAfterFirst = count(DB::getQueryLog());
+                    $afterUpdate = User::query()->get();
+                    $queriesAfterUpdate = count(DB::getQueryLog());
 
-                $second = User::query()->get();
-                $queriesAfterSecond = count(DB::getQueryLog());
+                    expect($queriesAfterUpdate)->toBeGreaterThan($queriesAfterCached, 'Cache must be flushed on update')
+                        ->and($afterUpdate->first()->name)->toBe('Updated');
+                });
 
-                expect($first)->toHaveCount(1)
-                    ->and($first->first()->name)->toBe('Original')
-                    ->and($queriesAfterSecond)->toBe($queriesAfterFirst);
+                it('delete flushes cache so next get() hits the database and returns fresh data', function (): void {
+                    $user = User::create(['name' => 'ToDelete', 'score' => 0]);
+                    User::create(['name' => 'Kept', 'score' => 1]);
 
-                $user->update(['name' => 'Updated']);
+                    DB::connection()->enableQueryLog();
+                    User::query()->get();
+                    User::query()->get();
+                    $queriesAfterCached = count(DB::getQueryLog());
 
-                $third = User::query()->get();
-                $queriesAfterThird = count(DB::getQueryLog());
+                    $user->delete();
 
-                expect($third)->toHaveCount(1)
-                    ->and($third->first()->name)->toBe('Updated')
-                    ->and($queriesAfterThird)->toBeGreaterThan($queriesAfterSecond);
-            });
+                    $afterDelete = User::query()->get();
+                    $queriesAfterDelete = count(DB::getQueryLog());
 
-            it('deleting a record invalidates collection cache so the next get() returns the updated result', function (): void {
-                User::create([
-                    'name' => 'First',
-                    'score' => 0,
-                ]);
-                $second = User::create([
-                    'name' => 'Second',
-                    'score' => 1,
-                ]);
-
-                DB::connection()->enableQueryLog();
-                $first = User::query()->get();
-                $queriesAfterFirst = count(DB::getQueryLog());
-
-                $cached = User::query()->get();
-                $queriesAfterCached = count(DB::getQueryLog());
-
-                expect($first)->toHaveCount(2)
-                    ->and($queriesAfterCached)->toBe($queriesAfterFirst);
-
-                $second->delete();
-
-                $third = User::query()->get();
-                $queriesAfterThird = count(DB::getQueryLog());
-
-                expect($third)->toHaveCount(1)
-                    ->and($queriesAfterThird)->toBeGreaterThan($queriesAfterCached);
-            });
-
-            it('updating one model invalidates only that model\'s find() cache; find() for other ids stays cached', function (): void {
-                $user1 = User::create(['name' => 'One', 'score' => 1]);
-                $user2 = User::create(['name' => 'Two', 'score' => 2]);
-
-                DB::connection()->enableQueryLog();
-                User::query()->find($user1->id);
-                User::query()->find($user2->id);
-                $queriesAfterFinds = count(DB::getQueryLog());
-
-                User::query()->find($user1->id);
-                User::query()->find($user2->id);
-                $queriesAfterSecondFinds = count(DB::getQueryLog());
-
-                expect($queriesAfterSecondFinds)->toBe($queriesAfterFinds);
-
-                $user1->update(['name' => 'OneUpdated']);
-
-                $find1Again = User::query()->find($user1->id);
-                $queriesAfterUpdateFind1 = count(DB::getQueryLog());
-
-                $find2Again = User::query()->find($user2->id);
-                $queriesAfterUpdateFind2 = count(DB::getQueryLog());
-
-                expect($find1Again->name)->toBe('OneUpdated')
-                    ->and($queriesAfterUpdateFind1)->toBeGreaterThan($queriesAfterFinds)
-                    ->and($find2Again->name)->toBe('Two')
-                    ->and($queriesAfterUpdateFind2)->toBe($queriesAfterUpdateFind1);
-            });
-
-            it('deleting a model invalidates that model\'s find() cache so the next find() hits the database and returns null', function (): void {
-                $user1 = User::create(['name' => 'One', 'score' => 1]);
-                $user2 = User::create(['name' => 'Two', 'score' => 2]);
-
-                DB::connection()->enableQueryLog();
-                User::query()->find($user2->id);
-                $queriesAfterFirstFind = count(DB::getQueryLog());
-
-                User::query()->find($user2->id);
-                $queriesAfterCachedFind = count(DB::getQueryLog());
-
-                expect($queriesAfterCachedFind)->toBe($queriesAfterFirstFind);
-
-                $user2->delete();
-
-                $findDeleted = User::query()->find($user2->id);
-                $queriesAfterDeleteFind = count(DB::getQueryLog());
-
-                expect($findDeleted)->toBeNull()
-                    ->and($queriesAfterDeleteFind)->toBeGreaterThan($queriesAfterCachedFind);
-            });
-
-            it('on create only collection caches are flushed; on update/delete only the collection tag and that model\'s id key are invalidated', function (): void {
-                $user1 = User::create(['name' => 'One', 'score' => 1]);
-                $user2 = User::create(['name' => 'Two', 'score' => 2]);
-
-                DB::connection()->enableQueryLog();
-                User::query()->get();
-                User::query()->find($user1->id);
-                User::query()->find($user2->id);
-                $afterWarm = count(DB::getQueryLog());
-
-                User::query()->get();
-                User::query()->find($user1->id);
-                User::query()->find($user2->id);
-                $afterCached = count(DB::getQueryLog());
-
-                expect($afterCached)->toBe($afterWarm);
-
-                $user1->update(['name' => 'Updated']);
-
-                $getAfterUpdate = User::query()->get();
-                $queriesAfterGet = count(DB::getQueryLog());
-                $find1AfterUpdate = User::query()->find($user1->id);
-                $queriesAfterFind1 = count(DB::getQueryLog());
-                $find2AfterUpdate = User::query()->find($user2->id);
-                $queriesAfterFind2 = count(DB::getQueryLog());
-
-                expect($getAfterUpdate->firstWhere('id', $user1->id)->name)->toBe('Updated')
-                    ->and($find1AfterUpdate->name)->toBe('Updated')
-                    ->and($find2AfterUpdate->name)->toBe('Two')
-                    ->and($queriesAfterGet)->toBeGreaterThan($afterCached)
-                    ->and($queriesAfterFind1)->toBeGreaterThan($queriesAfterGet)
-                    ->and($queriesAfterFind2)->toBe($queriesAfterFind1);
+                    expect($queriesAfterDelete)->toBeGreaterThan($queriesAfterCached, 'Cache must be flushed on delete')
+                        ->and($afterDelete)->toHaveCount(1)
+                        ->and($afterDelete->first()->name)->toBe('Kept');
+                });
             });
 
             it('warmup()->count() fills the cache so later count() calls are served from cache', function (): void {
