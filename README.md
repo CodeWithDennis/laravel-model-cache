@@ -143,6 +143,17 @@ Both normal caching and pre-warming support:
 
 ---
 
+## Cache invalidation
+
+Cache is invalidated automatically on model **created**, **updated**, **deleted**, and **restored** (soft deletes) events.
+
+- **Single-id queries** (e.g. `find($id)`): Cache key is `Model::class.':'.$id`. On update/delete/restore of that model we forget only that key, so other find-by-id caches stay valid.
+- **Collection queries** (e.g. `get()`, `where(...)->get()`): Cached with one tag per model; any change flushes that tag so the next request hits the database.
+
+**Mass operations:** `Model::where(...)->update([...])` and `Model::where(...)->delete()` do not fire model events in Laravel, so cache is not invalidated. Prefer per-model `$model->update()` / `$model->delete()`, or clear the relevant cache manually when using mass operations.
+
+---
+
 ## Requirements
 
 - PHP 8.4+

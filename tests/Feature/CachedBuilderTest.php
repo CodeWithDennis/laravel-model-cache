@@ -64,7 +64,7 @@ function assertSecondCallFromCache(callable $query): array
 describe('CachedBuilder', function (): void {
     describe('collections', function (): void {
         describe('get', function (): void {
-            it('hits the database on first call and serves from cache on second call', function (): void {
+            it('runs the query on first call and serves the result from cache on second call', function (): void {
                 User::create([
                     'name' => 'A',
                     'score' => 1,
@@ -80,14 +80,14 @@ describe('CachedBuilder', function (): void {
                     ->and($first)->toHaveCount(2);
             });
 
-            it('caches empty collection when table has no rows', function (): void {
+            it('caches empty result when the table has no rows', function (): void {
                 [$first, $second] = assertSecondCallFromCache(fn () => User::query()->get());
 
                 expect($first)->toBe($second)
                     ->and($first)->toBeEmpty();
             });
 
-            it('uses distinct cache keys for distinct queries so each query runs once', function (): void {
+            it('uses different cache keys for different queries so each query runs only once', function (): void {
                 User::create([
                     'name' => 'A',
                     'score' => 1,
@@ -125,7 +125,7 @@ describe('CachedBuilder', function (): void {
         });
 
         describe('first', function (): void {
-            it('hits the database on first call and serves from cache on second call', function (): void {
+            it('runs the query on first call and serves the result from cache on second call', function (): void {
                 User::create([
                     'name' => 'Alice',
                     'score' => 0,
@@ -139,7 +139,7 @@ describe('CachedBuilder', function (): void {
         });
 
         describe('find', function (): void {
-            it('hits the database on first call and serves from cache on second call', function (): void {
+            it('runs the query on first call and serves the result from cache on second call', function (): void {
                 $user = User::create([
                     'name' => 'Bob',
                     'score' => 0,
@@ -151,7 +151,7 @@ describe('CachedBuilder', function (): void {
                     ->and($first->name)->toBe('Bob');
             });
 
-            it('caches null when finding non-existent id', function (): void {
+            it('caches null when find() is called with a non-existent id', function (): void {
                 [$first, $second] = assertSecondCallFromCache(
                     fn () => User::query()->find(99999)
                 );
@@ -162,7 +162,7 @@ describe('CachedBuilder', function (): void {
         });
 
         describe('findMany', function (): void {
-            it('hits the database on first call and serves from cache on second call', function (): void {
+            it('runs the query on first call and serves the result from cache on second call', function (): void {
                 $u1 = User::create([
                     'name' => 'X',
                     'score' => 0,
@@ -183,7 +183,7 @@ describe('CachedBuilder', function (): void {
         });
 
         describe('pluck', function (): void {
-            it('hits the database on first call and serves from cache on second call', function (): void {
+            it('runs the query on first call and serves the result from cache on second call', function (): void {
                 User::create([
                     'name' => 'A',
                     'score' => 0,
@@ -203,7 +203,7 @@ describe('CachedBuilder', function (): void {
                     ->and($first->values()->all())->toBe(['A', 'B']);
             });
 
-            it('caches pluck and get separately so second call to each uses cache', function (): void {
+            it('caches pluck() and get() separately so repeated calls to each are served from cache', function (): void {
                 User::create([
                     'name' => 'Only',
                     'score' => 0,
@@ -228,7 +228,7 @@ describe('CachedBuilder', function (): void {
         });
 
         describe('value', function (): void {
-            it('hits the database on first call and serves from cache on second call', function (): void {
+            it('runs the query on first call and serves the result from cache on second call', function (): void {
                 User::create([
                     'name' => 'Charlie',
                     'score' => 0,
@@ -242,7 +242,7 @@ describe('CachedBuilder', function (): void {
         });
 
         describe('sole', function (): void {
-            it('hits the database on first call and serves from cache on second call', function (): void {
+            it('runs the query on first call and serves the result from cache on second call', function (): void {
                 User::create([
                     'name' => 'Sole',
                     'score' => 0,
@@ -262,7 +262,7 @@ describe('CachedBuilder', function (): void {
 
     describe('aggregates', function (): void {
         describe('count', function (): void {
-            it('hits the database on first call and serves from cache on second call', function (): void {
+            it('runs the query on first call and serves the result from cache on second call', function (): void {
                 User::create(['name' => 'A', 'score' => 0]);
                 User::create(['name' => 'B', 'score' => 0]);
                 User::create(['name' => 'C', 'score' => 0]);
@@ -277,7 +277,7 @@ describe('CachedBuilder', function (): void {
         });
 
         describe('sum', function (): void {
-            it('hits the database on first call and serves from cache on second call', function (): void {
+            it('runs the query on first call and serves the result from cache on second call', function (): void {
                 User::create([
                     'name' => 'A',
                     'score' => 10,
@@ -295,7 +295,7 @@ describe('CachedBuilder', function (): void {
                     ->and($first)->toBe(30);
             });
 
-            it('caches 0 when no rows match', function (): void {
+            it('caches zero when no rows match the query', function (): void {
                 [$first, $second] = assertSecondCallFromCache(
                     fn () => User::query()->sum('score')
                 );
@@ -306,7 +306,7 @@ describe('CachedBuilder', function (): void {
         });
 
         describe('avg', function (): void {
-            it('hits the database on first call and serves from cache on second call', function (): void {
+            it('runs the query on first call and serves the result from cache on second call', function (): void {
                 User::create([
                     'name' => 'A',
                     'score' => 10,
@@ -326,7 +326,7 @@ describe('CachedBuilder', function (): void {
         });
 
         describe('average', function (): void {
-            it('hits the database on first call and serves from cache on second call', function (): void {
+            it('runs the query on first call and serves the result from cache on second call', function (): void {
                 User::create([
                     'name' => 'A',
                     'score' => 100,
@@ -342,7 +342,7 @@ describe('CachedBuilder', function (): void {
         });
 
         describe('min', function (): void {
-            it('hits the database on first call and serves from cache on second call', function (): void {
+            it('runs the query on first call and serves the result from cache on second call', function (): void {
                 User::create([
                     'name' => 'A',
                     'score' => 5,
@@ -362,7 +362,7 @@ describe('CachedBuilder', function (): void {
         });
 
         describe('max', function (): void {
-            it('hits the database on first call and serves from cache on second call', function (): void {
+            it('runs the query on first call and serves the result from cache on second call', function (): void {
                 User::create([
                     'name' => 'A',
                     'score' => 5,
@@ -384,7 +384,7 @@ describe('CachedBuilder', function (): void {
 
     describe('existence', function (): void {
         describe('exists', function (): void {
-            it('hits the database on first call and serves from cache on second call', function (): void {
+            it('runs the query on first call and serves the result from cache on second call', function (): void {
                 User::create([
                     'name' => 'X',
                     'score' => 0,
@@ -398,7 +398,7 @@ describe('CachedBuilder', function (): void {
                     ->and($first)->toBeTrue();
             });
 
-            it('caches false when no rows exist so second call uses cache', function (): void {
+            it('caches false when no rows exist so second call is served from cache', function (): void {
                 [$first, $second] = assertSecondCallFromCache(
                     fn () => User::query()
                         ->where('id', 99999)
@@ -411,7 +411,7 @@ describe('CachedBuilder', function (): void {
         });
 
         describe('doesntExist', function (): void {
-            it('hits the database on first call and serves from cache on second call', function (): void {
+            it('runs the query on first call and serves the result from cache on second call', function (): void {
                 [$first, $second] = assertSecondCallFromCache(
                     fn () => User::query()
                         ->where('id', 99999)
@@ -426,7 +426,7 @@ describe('CachedBuilder', function (): void {
 
     describe('pagination', function (): void {
         describe('paginate', function (): void {
-            it('caches get result so second paginate call runs only count query', function (): void {
+            it('caches the get result so second paginate() runs only the count query', function (): void {
                 foreach (['A', 'B', 'C', 'D', 'E'] as $name) {
                     User::create([
                         'name' => $name,
@@ -449,7 +449,7 @@ describe('CachedBuilder', function (): void {
         });
 
         describe('simplePaginate', function (): void {
-            it('hits the database on first call and serves from cache on second call', function (): void {
+            it('runs the query on first call and serves the result from cache on second call', function (): void {
                 User::create([
                     'name' => 'A',
                     'score' => 0,
@@ -474,7 +474,7 @@ describe('CachedBuilder', function (): void {
 
     describe('model', function (): void {
         describe('cache TTL', function (): void {
-            it('uses default model cacheTtl when trait is present', function (): void {
+            it('uses the default cache TTL from the trait when the model has HasCache', function (): void {
                 User::create([
                     'name' => 'Ttl',
                     'score' => 0,
@@ -489,7 +489,7 @@ describe('CachedBuilder', function (): void {
                     ->and($first->first()->name)->toBe('Ttl');
             });
 
-            it('stores collection cache with finite TTL within expected range', function (): void {
+            it('stores collection query result with a finite TTL within the expected range', function (): void {
                 User::create([
                     'name' => 'Ttl',
                     'score' => 0,
@@ -508,7 +508,7 @@ describe('CachedBuilder', function (): void {
                     ->and($entry['expiresAt'])->toBeLessThanOrEqual(time() + 601);
             });
 
-            it('uses custom cacheTtl from method when overridden on model', function (): void {
+            it('uses custom TTL from cacheTtl() when overridden on the model', function (): void {
                 User::create([
                     'name' => 'CustomTtl',
                     'score' => 0,
@@ -527,7 +527,7 @@ describe('CachedBuilder', function (): void {
                     ->and($entry['expiresAt'])->toBeLessThanOrEqual($now + 305);
             });
 
-            it('uses custom cacheTtl from property when set on model', function (): void {
+            it('uses custom TTL from cacheTtl property when set on the model', function (): void {
                 User::create([
                     'name' => 'PropertyTtl',
                     'score' => 0,
@@ -548,7 +548,7 @@ describe('CachedBuilder', function (): void {
         });
 
         describe('warmup', function (): void {
-            it('warmup populates cache so subsequent get without warmup is served from cache', function (): void {
+            it('warmup() fills the cache so a later get() without warmup is served from cache', function (): void {
                 User::create([
                     'name' => 'Warmup',
                     'score' => 0,
@@ -571,7 +571,7 @@ describe('CachedBuilder', function (): void {
                     ->and($first->first()->name)->toBe('Warmup');
             });
 
-            it('warmup called again refreshes cache and returns fresh data', function (): void {
+            it('calling warmup() again refreshes the cache and returns fresh data', function (): void {
                 User::create([
                     'name' => 'Warmup',
                     'score' => 0,
@@ -588,7 +588,7 @@ describe('CachedBuilder', function (): void {
                     ->and($refreshed->pluck('name')->all())->toBe(['Warmup', 'WarmupTwo']);
             });
 
-            it('warmup stores cache with no expiration', function (): void {
+            it('warmup() stores the result with no expiration (forever)', function (): void {
                 User::create([
                     'name' => 'Warmup',
                     'score' => 0,
@@ -604,7 +604,7 @@ describe('CachedBuilder', function (): void {
                 expect($entry['expiresAt'])->toBeIn([0, 0.0]);
             });
 
-            it('creating a record busts collection cache so next get hits database', function (): void {
+            it('creating a record invalidates collection cache so the next get() hits the database', function (): void {
                 User::create([
                     'name' => 'First',
                     'score' => 0,
@@ -632,7 +632,7 @@ describe('CachedBuilder', function (): void {
                     ->and($queriesAfterThird)->toBeGreaterThan($queriesAfterSecond);
             });
 
-            it('updating a record busts collection cache so next get returns fresh data', function (): void {
+            it('updating a record invalidates collection cache so the next get() returns fresh data', function (): void {
                 $user = User::create([
                     'name' => 'Original',
                     'score' => 0,
@@ -659,7 +659,7 @@ describe('CachedBuilder', function (): void {
                     ->and($queriesAfterThird)->toBeGreaterThan($queriesAfterSecond);
             });
 
-            it('deleting a record busts collection cache so next get returns updated count', function (): void {
+            it('deleting a record invalidates collection cache so the next get() returns the updated result', function (): void {
                 User::create([
                     'name' => 'First',
                     'score' => 0,
@@ -688,7 +688,7 @@ describe('CachedBuilder', function (): void {
                     ->and($queriesAfterThird)->toBeGreaterThan($queriesAfterCached);
             });
 
-            it('updating one model busts only that model find cache; find other id remains cached', function (): void {
+            it('updating one model invalidates only that model\'s find() cache; find() for other ids stays cached', function (): void {
                 $user1 = User::create(['name' => 'One', 'score' => 1]);
                 $user2 = User::create(['name' => 'Two', 'score' => 2]);
 
@@ -717,7 +717,63 @@ describe('CachedBuilder', function (): void {
                     ->and($queriesAfterUpdateFind2)->toBe($queriesAfterUpdateFind1);
             });
 
-            it('warmup count populates cache so subsequent count calls are served from cache', function (): void {
+            it('deleting a model invalidates that model\'s find() cache so the next find() hits the database and returns null', function (): void {
+                $user1 = User::create(['name' => 'One', 'score' => 1]);
+                $user2 = User::create(['name' => 'Two', 'score' => 2]);
+
+                DB::connection()->enableQueryLog();
+                User::query()->find($user2->id);
+                $queriesAfterFirstFind = count(DB::getQueryLog());
+
+                User::query()->find($user2->id);
+                $queriesAfterCachedFind = count(DB::getQueryLog());
+
+                expect($queriesAfterCachedFind)->toBe($queriesAfterFirstFind);
+
+                $user2->delete();
+
+                $findDeleted = User::query()->find($user2->id);
+                $queriesAfterDeleteFind = count(DB::getQueryLog());
+
+                expect($findDeleted)->toBeNull()
+                    ->and($queriesAfterDeleteFind)->toBeGreaterThan($queriesAfterCachedFind);
+            });
+
+            it('on create only collection caches are flushed; on update/delete only the collection tag and that model\'s id key are invalidated', function (): void {
+                $user1 = User::create(['name' => 'One', 'score' => 1]);
+                $user2 = User::create(['name' => 'Two', 'score' => 2]);
+
+                DB::connection()->enableQueryLog();
+                User::query()->get();
+                User::query()->find($user1->id);
+                User::query()->find($user2->id);
+                $afterWarm = count(DB::getQueryLog());
+
+                User::query()->get();
+                User::query()->find($user1->id);
+                User::query()->find($user2->id);
+                $afterCached = count(DB::getQueryLog());
+
+                expect($afterCached)->toBe($afterWarm);
+
+                $user1->update(['name' => 'Updated']);
+
+                $getAfterUpdate = User::query()->get();
+                $queriesAfterGet = count(DB::getQueryLog());
+                $find1AfterUpdate = User::query()->find($user1->id);
+                $queriesAfterFind1 = count(DB::getQueryLog());
+                $find2AfterUpdate = User::query()->find($user2->id);
+                $queriesAfterFind2 = count(DB::getQueryLog());
+
+                expect($getAfterUpdate->firstWhere('id', $user1->id)->name)->toBe('Updated')
+                    ->and($find1AfterUpdate->name)->toBe('Updated')
+                    ->and($find2AfterUpdate->name)->toBe('Two')
+                    ->and($queriesAfterGet)->toBeGreaterThan($afterCached)
+                    ->and($queriesAfterFind1)->toBeGreaterThan($queriesAfterGet)
+                    ->and($queriesAfterFind2)->toBe($queriesAfterFind1);
+            });
+
+            it('warmup()->count() fills the cache so later count() calls are served from cache', function (): void {
                 User::create([
                     'name' => 'A',
                     'score' => 0,

@@ -143,8 +143,7 @@ class CachedBuilder extends Builder
     }
 
     /**
-     * Store with key (query-based) and tag(s). Collection queries use :collections tag;
-     * single/multi by id use :{id} so we only bust that id on update/delete.
+     * Store with key (query-based) and one tag per model. Any model change flushes that tag.
      *
      * @param  \Closure(): mixed  $callback
      */
@@ -171,8 +170,7 @@ class CachedBuilder extends Builder
     }
 
     /**
-     * Tags for this query: [model::class.':collections'] for collection queries,
-     * or [model::class.':'.$id, ...] for single/multi by primary key only.
+     * Single tag per model for collection queries. No tag for single-id (key-based bust).
      *
      * @return array<int, string>
      */
@@ -184,119 +182,55 @@ class CachedBuilder extends Builder
             return [];
         }
 
-        $ids = $this->getPrimaryKeyIdsFromQuery();
-        $prefix = $model::class.':';
-
-        if ($ids === null) {
-            return [$prefix.'collections'];
+        if ($this->getSingleIdFromQuery() !== null) {
+            return [];
         }
 
-        return array_map(
-            fn ($id) => $prefix.$id,
-            $ids,
-        );
+        return [$model::class];
     }
 
     /**
-     * If the query is constrained only by primary key (= or In), return the id(s).
-     * Otherwise null (collection query).
-     *
-     * @return array<int, int|string>|null
+     * For single-id queries (e.g. find($id)): model::class.':'.$id for targeted bust.
+     * Otherwise: model::class.':'.md5(sql) with tag flush on any change.
      */
-    protected function getPrimaryKeyIdsFromQuery(): ?array
+    protected function queryCacheKey(string $suffix = ''): string
+    {
+        $model = $this->getModel();
+        $prefix = in_array(HasCache::class, class_uses($model), true) ? $model::class.':' : '';
+        $singleId = $this->getSingleIdFromQuery();
+
+        if ($singleId !== null) {
+            return $prefix.$singleId.($suffix !== '' ? ':'.$suffix : '');
+        }
+
+        $raw = $this->applyScopes()->toBase()->toRawSql();
+
+        return $prefix.md5($raw.$suffix);
+    }
+
+    /**
+     * Only for a single top-level where(key, '=', id). Enables key-based cache bust per model.
+     *
+     * @return int|string|null
+     */
+    protected function getSingleIdFromQuery(): int|string|null
     {
         $query = $this->applyScopes()->getQuery();
         $keyName = $this->getModel()->getQualifiedKeyName();
 
-        if ($query->wheres === []) {
+        if (count($query->wheres) !== 1) {
             return null;
         }
 
-        $ids = [];
-
-        foreach ($query->wheres as $where) {
-            if (! is_array($where)) {
-                return null;
-            }
-
-            $clauseIds = $this->extractPrimaryKeyIdsFromClause($where, $keyName);
-
-            if ($clauseIds === null) {
-                return null;
-            }
-
-            $ids = [...$ids, ...$clauseIds];
+        $where = $query->wheres[0];
+        if (! is_array($where) || ($where['type'] ?? null) !== 'Basic') {
+            return null;
         }
-
-        $result = array_values(array_unique($ids));
-
-        return $result === [] ? null : $result;
-    }
-
-    /**
-     * Extract primary key id(s) from a single where clause if it constrains only the given key.
-     *
-     * @param  array<mixed, mixed>  $where
-     * @return array<int, int|string>|null
-     */
-    private function extractPrimaryKeyIdsFromClause(array $where, string $keyName): ?array
-    {
-        if (($where['column'] ?? null) !== $keyName) {
+        if (($where['column'] ?? null) !== $keyName || ($where['operator'] ?? null) !== '=') {
             return null;
         }
 
-        $type = $where['type'] ?? null;
-
-        if ($type === 'Basic' && ($where['operator'] ?? null) === '=') {
-            return $this->singleIdOrNull($where['value'] ?? null);
-        }
-
-        if ($type === 'In' || $type === 'InRaw') {
-            $values = $where['values'] ?? [];
-
-            if (! is_array($values)) {
-                return null;
-            }
-
-            return $this->idsFromValues($values);
-        }
-
-        return null;
-    }
-
-    /**
-     * @return array<int, int|string>|null
-     */
-    private function singleIdOrNull(mixed $value): ?array
-    {
-        $id = $this->normalizeId($value);
-
-        return $id !== null ? [$id] : null;
-    }
-
-    /**
-     * @param  array<mixed>  $values
-     * @return array<int, int|string>|null
-     */
-    private function idsFromValues(array $values): ?array
-    {
-        $ids = [];
-
-        foreach ($values as $value) {
-            $id = $this->normalizeId($value);
-
-            if ($id === null) {
-                return null;
-            }
-
-            $ids[] = $id;
-        }
-
-        return $ids;
-    }
-
-    private function normalizeId(mixed $value): int|string|null
-    {
+        $value = $where['value'] ?? null;
         $value = $value instanceof \BackedEnum ? $value->value : $value;
 
         return is_int($value) || is_string($value) ? $value : null;
@@ -322,12 +256,5 @@ class CachedBuilder extends Builder
     protected function cacheKeySuffix(string $method, ...$args): string
     {
         return $method.':'.md5(serialize($args));
-    }
-
-    protected function queryCacheKey(string $suffix = ''): string
-    {
-        $raw = $this->applyScopes()->toBase()->toRawSql();
-
-        return md5($raw.$suffix);
     }
 }
