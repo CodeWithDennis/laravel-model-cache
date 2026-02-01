@@ -147,7 +147,10 @@ class CachedBuilder extends Builder
     protected function remember(string $key, \Closure $callback): mixed
     {
         if ($this->cacheForever) {
-            return Cache::rememberForever($key, $callback);
+            $value = $callback();
+            Cache::forever($key, $value);
+
+            return $value;
         }
 
         return Cache::remember($key, $this->getCacheTtl(), $callback);

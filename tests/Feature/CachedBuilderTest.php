@@ -347,14 +347,32 @@ describe('CachedBuilder', function (): void {
         });
 
         describe('warmup', function (): void {
-            it('caches result indefinitely (second call from cache, no new queries)', function (): void {
+            it('populates cache indefinitely (get() without warmup serves from cache)', function (): void {
                 User::create(['name' => 'Warmup', 'score' => 0]);
 
-                [$first, $second] = assertSecondCallFromCache(fn () => User::query()->warmup()->get());
+                DB::connection()->enableQueryLog();
+                $warmup = User::query()->warmup()->get();
+                $queryCountAfterWarmup = count(DB::getQueryLog());
 
-                expect($first)->toBe($second)
-                    ->and($first)->toHaveCount(1)
-                    ->and($first->first()->name)->toBe('Warmup');
+                $first = User::query()->get();
+                $queryCountAfterFirstGet = count(DB::getQueryLog());
+                $second = User::query()->get();
+                $queryCountAfterSecondGet = count(DB::getQueryLog());
+
+                expect($queryCountAfterWarmup)->toBeGreaterThan(0, 'Warmup should execute database query');
+                expect($queryCountAfterFirstGet)->toBe($queryCountAfterWarmup, 'First get() should be from cache');
+                expect($queryCountAfterSecondGet)->toBe($queryCountAfterWarmup, 'Second get() should be from cache');
+                expect($first)->toBe($second)->and($first)->toHaveCount(1)->and($first->first()->name)->toBe('Warmup');
+            });
+
+            it('refreshes cache when warmup() is called again (returns new value)', function (): void {
+                User::create(['name' => 'Warmup', 'score' => 0]);
+                User::query()->warmup()->get();
+
+                User::create(['name' => 'WarmupTwo', 'score' => 1]);
+                $refreshed = User::query()->warmup()->get();
+                expect($refreshed)->toHaveCount(2)
+                    ->and($refreshed->pluck('name')->all())->toBe(['Warmup', 'WarmupTwo']);
             });
 
             it('stores cache with no expiration (expiresAt is 0)', function (): void {
