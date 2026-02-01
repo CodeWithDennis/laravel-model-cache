@@ -30,11 +30,6 @@ class User extends Model
 }
 ```
 
-**Cache not busting when you run `Category::create([...])`?**  
-1. **Use the trait on that model** — e.g. `class Category extends Model { use HasCache; }`. Without it, no flush runs on create/update/delete.  
-2. **Use a tag-capable driver** — set `CACHE_STORE=redis` (or `memcached`). The `file` and `database` drivers do not support tags; if you use them, the package will throw a clear exception on create/update/delete.  
-3. **Use Eloquent, not query builder** — `Category::create([...])` and `$category->save()` fire model events; `Category::insert([...])` does not.
-
 ---
 
 ## Part 1: Normal Caching
@@ -150,7 +145,7 @@ Both normal caching and pre-warming support:
 
 ## Cache invalidation
 
-Cache is invalidated automatically on model **created**, **updated**, **deleted**, and **restored** (soft deletes) events. All cached queries for that model use one tag per model class; any change flushes it so the next request hits the database.
+Cache is invalidated automatically on model **created**, **updated**, **deleted**, and **restored** (soft deletes) events.
 
 ---
 
