@@ -143,43 +143,97 @@ class CachedBuilder extends Builder
     }
 
     /**
-     * Store with both key (query-based) and tag (model class).
-     * The key identifies the specific query result; the tag groups all cached queries
-     * for the model so we can flush by tag without knowing individual keys.
+     * Store with key (query-based) and tag(s). List queries use :lists tag;
+     * single/multi by id use :{id} so we only bust that id on update/delete.
      *
      * @param  \Closure(): mixed  $callback
      */
     protected function remember(string $key, \Closure $callback): mixed
     {
-        $tag = $this->getModelTag();
+        $tags = $this->getCacheTags();
 
         if ($this->cacheForever) {
             $value = $callback();
-            $tag !== null && $this->supportsTags()
-                ? Cache::tags([$tag])->forever($key, $value)
-                : Cache::forever($key, $value);
+            if ($tags !== []) {
+                Cache::tags($tags)->forever($key, $value);
+            } else {
+                Cache::forever($key, $value);
+            }
 
             return $value;
         }
 
-        return $tag !== null && $this->supportsTags()
-            ? Cache::tags([$tag])->remember($key, $this->getCacheTtl(), $callback)
-            : Cache::remember($key, $this->getCacheTtl(), $callback);
+        if ($tags !== []) {
+            return Cache::tags($tags)->remember($key, $this->getCacheTtl(), $callback);
+        }
+
+        return Cache::remember($key, $this->getCacheTtl(), $callback);
     }
 
-    protected function getModelTag(): ?string
+    /**
+     * Tags for this query: [model::class.':lists'] for list queries,
+     * or [model::class.':'.$id, ...] for single/multi by primary key only.
+     *
+     * @return array<int, string>
+     */
+    protected function getCacheTags(): array
     {
         $model = $this->getModel();
         if (! in_array(HasCache::class, class_uses($model), true)) {
+            return [];
+        }
+
+        $ids = $this->getPrimaryKeyIdsFromQuery();
+        $prefix = $model::class.':';
+
+        if ($ids === null) {
+            return [$prefix.'lists'];
+        }
+
+        return array_map(fn ($id) => $prefix.$id, $ids);
+    }
+
+    /**
+     * If the query is constrained only by primary key (= or In), return the id(s). Otherwise null (list query).
+     *
+     * @return array<int, int|string>|null
+     */
+    protected function getPrimaryKeyIdsFromQuery(): ?array
+    {
+        $query = $this->applyScopes()->getQuery();
+        $keyName = $this->getModel()->getQualifiedKeyName();
+        $wheres = $query->wheres ?? [];
+
+        if ($wheres === []) {
             return null;
         }
 
-        return $model::class;
-    }
+        $ids = [];
+        foreach ($wheres as $where) {
+            $type = $where['type'] ?? null;
+            $column = $where['column'] ?? null;
 
-    protected function supportsTags(): bool
-    {
-        return method_exists(Cache::getStore(), 'tags');
+            if ($column !== $keyName) {
+                return null;
+            }
+
+            if ($type === 'Basic' && ($where['operator'] ?? null) === '=') {
+                $value = $where['value'] ?? null;
+                if ($value instanceof \BackedEnum) {
+                    $value = $value->value;
+                }
+                $ids[] = $value;
+            } elseif ($type === 'In' || $type === 'InRaw') {
+                $values = $where['values'] ?? [];
+                foreach ($values as $v) {
+                    $ids[] = $v instanceof \BackedEnum ? $v->value : $v;
+                }
+            } else {
+                return null;
+            }
+        }
+
+        return $ids === [] ? null : array_values(array_unique($ids));
     }
 
     protected function getCacheTtl(): int

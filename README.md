@@ -17,6 +17,8 @@ Add the trait to a model and get TTL-based query caching. Optionally use pre-war
 composer require codewithdennis/cache-pre-warming
 ```
 
+**Cache driver:** Use a driver that supports tags (`array`, `redis`, or `memcached`). The `file` and `database` drivers do not support tagging; cache invalidation on model events will not work with them.
+
 Add the trait to any model:
 
 ```php

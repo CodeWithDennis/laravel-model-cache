@@ -688,6 +688,35 @@ describe('CachedBuilder', function (): void {
                     ->and($queriesAfterThird)->toBeGreaterThan($queriesAfterCached);
             });
 
+            it('only busts list cache and that model id on update (find other id stays cached)', function (): void {
+                $user1 = User::create(['name' => 'One', 'score' => 1]);
+                $user2 = User::create(['name' => 'Two', 'score' => 2]);
+
+                DB::connection()->enableQueryLog();
+                User::query()->find($user1->id);
+                User::query()->find($user2->id);
+                $queriesAfterFinds = count(DB::getQueryLog());
+
+                User::query()->find($user1->id);
+                User::query()->find($user2->id);
+                $queriesAfterSecondFinds = count(DB::getQueryLog());
+
+                expect($queriesAfterSecondFinds)->toBe($queriesAfterFinds);
+
+                $user1->update(['name' => 'OneUpdated']);
+
+                $find1Again = User::query()->find($user1->id);
+                $queriesAfterUpdateFind1 = count(DB::getQueryLog());
+
+                $find2Again = User::query()->find($user2->id);
+                $queriesAfterUpdateFind2 = count(DB::getQueryLog());
+
+                expect($find1Again->name)->toBe('OneUpdated')
+                    ->and($queriesAfterUpdateFind1)->toBeGreaterThan($queriesAfterFinds)
+                    ->and($find2Again->name)->toBe('Two')
+                    ->and($queriesAfterUpdateFind2)->toBe($queriesAfterUpdateFind1);
+            });
+
             it('caches count indefinitely when using warmup', function (): void {
                 User::create([
                     'name' => 'A',

@@ -14,21 +14,36 @@ trait HasCache
 
     public static function bootHasCache(): void
     {
-        foreach (['created', 'updated', 'deleted'] as $event) {
-            static::$event(function (): void {
-                static::flushModelCache();
-            });
-        }
+        static::created(function ($model): void {
+            static::flushListCache();
+        });
+        static::updated(function ($model): void {
+            static::flushModelCache($model);
+        });
+        static::deleted(function ($model): void {
+            static::flushModelCache($model);
+        });
     }
 
     /**
-     * Flush all cached query results for this model by clearing the model's tag.
-     * Entries are stored with both a query-based key and this model tag.
+     * Flush list caches only (e.g. get(), where()->get()). Called on create.
      */
-    protected static function flushModelCache(): void
+    protected static function flushListCache(): void
     {
-        if (method_exists(Cache::getStore(), 'tags')) {
-            Cache::tags([static::class])->flush();
+        Cache::tags([static::class.':lists'])->flush();
+    }
+
+    /**
+     * Flush list caches and caches for this specific model (e.g. find($id)). Called on update/delete.
+     *
+     * @param  \Illuminate\Database\Eloquent\Model  $model
+     */
+    protected static function flushModelCache($model): void
+    {
+        Cache::tags([static::class.':lists'])->flush();
+        $key = $model->getKey();
+        if ($key !== null) {
+            Cache::tags([static::class.':'.$key])->flush();
         }
     }
 
