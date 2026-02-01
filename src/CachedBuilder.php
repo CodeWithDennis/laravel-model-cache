@@ -143,7 +143,7 @@ class CachedBuilder extends Builder
     }
 
     /**
-     * Store with key (query-based) and tag(s). List queries use :lists tag;
+     * Store with key (query-based) and tag(s). Collection queries use :collections tag;
      * single/multi by id use :{id} so we only bust that id on update/delete.
      *
      * @param  \Closure(): mixed  $callback
@@ -171,7 +171,7 @@ class CachedBuilder extends Builder
     }
 
     /**
-     * Tags for this query: [model::class.':lists'] for list queries,
+     * Tags for this query: [model::class.':collections'] for collection queries,
      * or [model::class.':'.$id, ...] for single/multi by primary key only.
      *
      * @return array<int, string>
@@ -187,14 +187,14 @@ class CachedBuilder extends Builder
         $prefix = $model::class.':';
 
         if ($ids === null) {
-            return [$prefix.'lists'];
+            return [$prefix.'collections'];
         }
 
         return array_map(fn ($id) => $prefix.$id, $ids);
     }
 
     /**
-     * If the query is constrained only by primary key (= or In), return the id(s). Otherwise null (list query).
+     * If the query is constrained only by primary key (= or In), return the id(s). Otherwise null (collection query).
      *
      * @return array<int, int|string>|null
      */

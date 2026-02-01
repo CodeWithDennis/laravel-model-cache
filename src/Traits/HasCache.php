@@ -15,7 +15,7 @@ trait HasCache
     public static function bootHasCache(): void
     {
         static::created(function ($model): void {
-            static::flushListCache();
+            static::flushCollectionCache();
         });
         static::updated(function ($model): void {
             static::flushModelCache($model);
@@ -26,21 +26,21 @@ trait HasCache
     }
 
     /**
-     * Flush list caches only (e.g. get(), where()->get()). Called on create.
+     * Flush collection caches only (e.g. get(), where()->get()). Called on create.
      */
-    protected static function flushListCache(): void
+    protected static function flushCollectionCache(): void
     {
-        Cache::tags([static::class.':lists'])->flush();
+        Cache::tags([static::class.':collections'])->flush();
     }
 
     /**
-     * Flush list caches and caches for this specific model (e.g. find($id)). Called on update/delete.
+     * Flush collection caches and caches for this specific model (e.g. find($id)). Called on update/delete.
      *
      * @param  \Illuminate\Database\Eloquent\Model  $model
      */
     protected static function flushModelCache($model): void
     {
-        Cache::tags([static::class.':lists'])->flush();
+        Cache::tags([static::class.':collections'])->flush();
         $key = $model->getKey();
         if ($key !== null) {
             Cache::tags([static::class.':'.$key])->flush();
