@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace CodeWithDennis\CachePreWarming\Traits;
+namespace CodeWithDennis\LaravelModelCache\Traits;
 
-use CodeWithDennis\CachePreWarming\CachedBuilder;
+use CodeWithDennis\LaravelModelCache\CachedBuilder;
 use Illuminate\Database\Eloquent\Builder;
 
 trait HasCache

@@ -1,7 +1,7 @@
 {
-    "name": "codewithdennis/cache-pre-warming",
+    "name": "codewithdennis/laravel-model-cache",
     "description": "Pre-warm and cache Eloquent query results. Run heavy queries once with warmup (forever cache) or use TTL-based caching on any model.",
-    "keywords": ["laravel", "eloquent", "cache", "pre-warming", "warmup", "query cache", "ttl", "performance"],
+    "keywords": ["laravel", "eloquent", "cache", "model-cache", "pre-warming", "warmup", "query cache", "ttl", "performance"],
     "license": "MIT",
     "authors": [
         {
@@ -25,7 +25,7 @@
     },
     "autoload": {
         "psr-4": {
-            "CodeWithDennis\\CachePreWarming\\": "src/"
+            "CodeWithDennis\\LaravelModelCache\\": "src/"
         }
     },
     "autoload-dev": {

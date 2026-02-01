@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Stubs;
 
-use CodeWithDennis\CachePreWarming\Traits\HasCache;
+use CodeWithDennis\LaravelModelCache\Traits\HasCache;
 use Illuminate\Database\Eloquent\Model;
 
 class User extends Model
