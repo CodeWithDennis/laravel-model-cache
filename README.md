@@ -1,6 +1,6 @@
 # Cache Pre-Warming
 
-> **Currently in beta**
+> **Currently in a testing phase and no where near a release**
 
 [![Tests](https://github.com/CodeWithDennis/laravel-model-cache/actions/workflows/tests.yml/badge.svg?branch=master)](https://github.com/CodeWithDennis/laravel-model-cache/actions/workflows/tests.yml)
 [![License](https://img.shields.io/github/license/CodeWithDennis/laravel-model-cache)](https://github.com/CodeWithDennis/laravel-model-cache/blob/master/LICENSE.md)
